@@ -332,8 +332,10 @@ function MainApp({ currentUser, onLogout }) {
   const [tForm,   setTForm]   = useState({});
   const [pForm,   setPForm]   = useState({});
   const [cForm,   setCForm]   = useState({ tenantId: "", period: today().slice(0, 7), type: "Rent", amount: "", date: today(), remarks: "" });
-  const [resetPwd, setResetPwd] = useState("");
-  const [resetErr, setResetErr] = useState(false);
+  const [resetPwd,   setResetPwd]   = useState("");
+  const [resetErr,   setResetErr]   = useState(false);
+  const [soaModal,   setSoaModal]   = useState(null); // { tenant }
+  const [soaPeriod,  setSoaPeriod]  = useState(today().slice(0, 7));
 
   // ── LOAD (only this user's data) ──
   const loadAll = async () => {
@@ -451,6 +453,113 @@ function MainApp({ currentUser, onLogout }) {
     const rows = ledger.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${e.desc}</td><td class="right">${e.debit ? fmtCurrency(e.debit) : "—"}</td><td class="right">${e.credit ? fmtCurrency(e.credit) : "—"}</td><td class="right bold">${fmtCurrency(e.balance)}</td></tr>`).join("");
     printHTML(`<div class="header"><div><div class="logo">🏨 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Statement of Account</p></div><div style="text-align:right;font-size:11px;color:#64748b">Generated: ${fmtDate(today())}</div></div><table style="margin-bottom:16px;border:none"><tr><td style="border:none;padding:2px 0"><b>Tenant:</b> ${tenant.name}</td><td style="border:none;padding:2px 0"><b>Unit:</b> ${prop?.name || "—"}</td></tr><tr><td style="border:none;padding:2px 0"><b>Email:</b> ${tenant.email}</td><td style="border:none;padding:2px 0"><b>Lease End:</b> ${fmtDate(tenant.leaseEnd)}</td></tr></table><table><thead><tr><th>Date</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td colspan="3"></td><td class="right">Outstanding:</td><td class="right">${fmtCurrency(balance)}</td></tr></table>`, `SOA — ${tenant.name}`);
   };
+  // ── MONTHLY SOA ──
+  const printMonthlySoa = (tenant, period) => {
+    const prop = properties.find(p => p.id === tenant.propertyId);
+
+    // Current month charges
+    const currentCharges = charges
+      .filter(c => c.tenantId === tenant.id && c.period === period)
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+
+    const currentTotal = currentCharges.reduce((s, c) => s + Number(c.amount), 0);
+
+    // Payments made IN the current period month
+    const currentPayments = payments
+      .filter(p => p.tenantId === tenant.id && (p.date || "").slice(0, 7) === period)
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+
+    const currentPaid = currentPayments.reduce((s, p) => s + Number(p.amount), 0);
+
+    // Previous balance = all charges & payments BEFORE this period
+    const prevCharges  = charges.filter(c => c.tenantId === tenant.id && (c.period || "") < period);
+    const prevPayments = payments.filter(p => p.tenantId === tenant.id && (p.date || "").slice(0, 7) < period);
+    const prevBalance  = prevCharges.reduce((s, c) => s + Number(c.amount), 0)
+                       - prevPayments.reduce((s, p) => s + Number(p.amount), 0);
+
+    const totalDue   = currentTotal + prevBalance;
+    const totalPaid  = currentPaid;
+    const remaining  = totalDue - totalPaid;
+
+    const [year, mon] = period.split("-");
+    const monthName = new Date(Number(year), Number(mon) - 1, 1).toLocaleString("en-PH", { month: "long", year: "numeric" });
+
+    // Current charges rows
+    const chargeRows = currentCharges.map(ch =>
+      `<tr><td>${fmtDate(ch.date)}</td><td>${ch.remarks || ch.type}</td><td class="right">${fmtCurrency(ch.amount)}</td></tr>`
+    ).join("");
+
+    // Current payments rows
+    const payRows = currentPayments.map(p =>
+      `<tr><td>${fmtDate(p.date)}</td><td>Payment — ${p.method}${p.reference ? " " + p.reference : ""}</td><td class="right" style="color:#065f46">(${fmtCurrency(p.amount)})</td></tr>`
+    ).join("");
+
+    const prevBalanceSection = prevBalance !== 0 ? `
+      <tr style="background:#fefce8"><td colspan="2" style="font-weight:700;color:#92400e">Previous Unpaid Balance (before ${monthName})</td><td class="right bold" style="color:#92400e">${fmtCurrency(prevBalance)}</td></tr>
+    ` : "";
+
+    const html = `
+      <div class="header">
+        <div>
+          <div class="logo">🏨 EULA RentalPMS</div>
+          <p style="color:#64748b;font-size:12px;margin-top:4px;font-weight:600">Monthly Statement of Account</p>
+          <p style="color:#64748b;font-size:12px">${monthName}</p>
+        </div>
+        <div style="text-align:right;font-size:11px;color:#64748b">Generated: ${fmtDate(today())}</div>
+      </div>
+
+      <table style="margin-bottom:20px;border:none">
+        <tr><td style="border:none;padding:3px 0;width:50%"><b>Tenant:</b> ${tenant.name}</td><td style="border:none;padding:3px 0"><b>Unit:</b> ${prop?.name || "—"}</td></tr>
+        <tr><td style="border:none;padding:3px 0"><b>Phone:</b> ${tenant.phone || "—"}</td><td style="border:none;padding:3px 0"><b>Lease End:</b> ${fmtDate(tenant.leaseEnd)}</td></tr>
+      </table>
+
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;color:#1e293b">Current Month Charges — ${monthName}</p>
+      <table>
+        <thead><tr><th>Date</th><th>Description</th><th class="right">Amount</th></tr></thead>
+        <tbody>
+          ${chargeRows || '<tr><td colspan="3" style="color:#94a3b8;text-align:center">No charges for this period</td></tr>'}
+        </tbody>
+        <tr class="total-row"><td colspan="2">Total Current Charges</td><td class="right">${fmtCurrency(currentTotal)}</td></tr>
+      </table>
+
+      ${prevBalance > 0 ? `
+      <p style="font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#92400e">Previous Unpaid Balance</p>
+      <table>
+        <thead><tr><th>Description</th><th class="right">Amount</th></tr></thead>
+        <tbody>
+          <tr style="background:#fefce8"><td style="color:#92400e">Unpaid balance from previous months (since ${fmtDate(tenant.leaseStart)})</td><td class="right bold" style="color:#92400e">${fmtCurrency(prevBalance)}</td></tr>
+        </tbody>
+      </table>` : prevBalance < 0 ? `
+      <p style="font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#065f46">Previous Credit Balance</p>
+      <table>
+        <thead><tr><th>Description</th><th class="right">Amount</th></tr></thead>
+        <tbody>
+          <tr style="background:#f0fdf4"><td style="color:#065f46">Credit from previous overpayments</td><td class="right bold" style="color:#065f46">(${fmtCurrency(Math.abs(prevBalance))})</td></tr>
+        </tbody>
+      </table>` : ""}
+
+      <p style="font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#1e293b">Payments Received — ${monthName}</p>
+      <table>
+        <thead><tr><th>Date</th><th>Reference</th><th class="right">Amount</th></tr></thead>
+        <tbody>
+          ${payRows || '<tr><td colspan="3" style="color:#94a3b8;text-align:center">No payments received this month</td></tr>'}
+        </tbody>
+        <tr class="total-row"><td colspan="2">Total Payments This Month</td><td class="right" style="color:#065f46">${fmtCurrency(currentPaid)}</td></tr>
+      </table>
+
+      <table style="margin-top:20px;border:2px solid #e2e8f0;border-radius:8px">
+        <tr style="background:#f8fafc"><td style="padding:10px 14px;font-weight:700">Current Month Charges</td><td class="right bold" style="padding:10px 14px">${fmtCurrency(currentTotal)}</td></tr>
+        ${prevBalance > 0 ? `<tr><td style="padding:10px 14px;color:#92400e;font-weight:600">Previous Unpaid Balance</td><td class="right bold" style="padding:10px 14px;color:#92400e">+ ${fmtCurrency(prevBalance)}</td></tr>` : prevBalance < 0 ? `<tr><td style="padding:10px 14px;color:#065f46;font-weight:600">Previous Credit</td><td class="right bold" style="padding:10px 14px;color:#065f46">(${fmtCurrency(Math.abs(prevBalance))})</td></tr>` : ""}
+        <tr><td style="padding:10px 14px;color:#065f46;font-weight:600">Less: Payments This Month</td><td class="right bold" style="padding:10px 14px;color:#065f46">- ${fmtCurrency(currentPaid)}</td></tr>
+        <tr style="background:${remaining > 0 ? "#fff7ed" : "#f0fdf4"};border-top:2px solid #e2e8f0"><td style="padding:12px 14px;font-size:15px;font-weight:800;color:${remaining > 0 ? "#c2410c" : "#065f46"}">AMOUNT DUE</td><td class="right" style="padding:12px 14px;font-size:18px;font-weight:800;color:${remaining > 0 ? "#c2410c" : "#065f46"}">${fmtCurrency(remaining)}</td></tr>
+      </table>
+
+      <p style="margin-top:28px;font-size:10px;color:#94a3b8;text-align:center">Please pay on or before the due date. Thank you!</p>
+    `;
+
+    printHTML(html, `Monthly SOA — ${tenant.name} — ${monthName}`);
+  };
+
   const printReceipt = (payment) => {
     const tenant = tenants.find(t => t.id === payment.tenantId);
     const prop = properties.find(p => p.id === tenant?.propertyId);
@@ -585,7 +694,12 @@ function MainApp({ currentUser, onLogout }) {
           {filtered.map(t => { const prop = properties.find(p => p.id === t.propertyId); const balance = getTenantBalance(t.id, charges, payments); return (
             <Card key={t.id} className="p-4">
               <div className="flex items-start justify-between"><div className="min-w-0 flex-1"><p className="font-semibold text-slate-800 truncate">{t.name}</p><p className="text-xs text-slate-500 mt-0.5">{prop?.name} · {t.phone}</p><p className="text-xs text-slate-400">Lease ends {fmtDate(t.leaseEnd)}</p></div><div className="text-right ml-2"><p className={`text-sm font-bold ${balance > 0 ? "text-rose-600" : "text-emerald-600"}`}>{fmtCurrency(Math.abs(balance))}</p><p className="text-xs text-slate-400">{balance > 0 ? "due" : "credit"}</p></div></div>
-              <div className="flex gap-2 mt-3"><button onClick={() => setViewTenant(t)} className="flex-1 text-xs text-indigo-600 font-semibold border border-indigo-200 rounded-lg py-1.5 hover:bg-indigo-50">View</button><button onClick={() => { setTForm({ ...t }); setModal({ type: "tenant" }); }} className="flex-1 text-xs text-slate-600 font-semibold border border-slate-200 rounded-lg py-1.5 hover:bg-slate-50">Edit</button><button onClick={() => printSOA(t)} className="flex-1 text-xs text-slate-600 font-semibold border border-slate-200 rounded-lg py-1.5 hover:bg-slate-50">SOA</button></div>
+              <div className="flex gap-2 mt-3 flex-wrap">
+                <button onClick={() => setViewTenant(t)} className="flex-1 text-xs text-indigo-600 font-semibold border border-indigo-200 rounded-lg py-1.5 hover:bg-indigo-50 min-w-[60px]">View</button>
+                <button onClick={() => { setTForm({ ...t }); setModal({ type: "tenant" }); }} className="flex-1 text-xs text-slate-600 font-semibold border border-slate-200 rounded-lg py-1.5 hover:bg-slate-50 min-w-[60px]">Edit</button>
+                <button onClick={() => printSOA(t)} className="flex-1 text-xs text-slate-600 font-semibold border border-slate-200 rounded-lg py-1.5 hover:bg-slate-50 min-w-[50px]">SOA</button>
+                <button onClick={() => { setSoaModal({ tenant: t }); setSoaPeriod(today().slice(0, 7)); }} className="flex-1 text-xs text-emerald-700 font-semibold border border-emerald-200 rounded-lg py-1.5 hover:bg-emerald-50 min-w-[80px]">Monthly SOA</button>
+              </div>
             </Card>
           ); })}
         </div>
@@ -882,6 +996,103 @@ function MainApp({ currentUser, onLogout }) {
             </Field>
             <button onClick={handleReset} className="w-full bg-rose-600 text-white rounded-xl py-3 text-sm font-bold hover:bg-rose-700">Delete All My Data</button>
             <button onClick={closeModal} className="w-full mt-2 border-2 border-slate-200 text-slate-600 rounded-xl py-3 text-sm font-bold hover:bg-slate-50">Cancel</button>
+          </div>
+        </AppModal>
+      )}
+
+      {/* ── MONTHLY SOA MODAL ── */}
+      {soaModal && (
+        <AppModal title={`Monthly SOA — ${soaModal.tenant.name}`} onClose={() => setSoaModal(null)}>
+          <div className="space-y-4">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1">How this works</p>
+              <p className="text-xs text-emerald-600">Shows current month charges first, then any unpaid balance carried over from previous months.</p>
+            </div>
+
+            <Field label="Billing Period (Month)">
+              <Input type="month" value={soaPeriod} onChange={e => setSoaPeriod(e.target.value)} />
+            </Field>
+
+            {/* Preview */}
+            {(() => {
+              const t = soaModal.tenant;
+              const period = soaPeriod;
+              const currentCharges = charges.filter(c => c.tenantId === t.id && c.period === period).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+              const currentTotal   = currentCharges.reduce((s, c) => s + Number(c.amount), 0);
+              const currentPaid    = payments.filter(p => p.tenantId === t.id && (p.date || "").slice(0, 7) === period).reduce((s, p) => s + Number(p.amount), 0);
+              const prevCharges    = charges.filter(c => c.tenantId === t.id && (c.period || "") < period);
+              const prevPayments   = payments.filter(p => p.tenantId === t.id && (p.date || "").slice(0, 7) < period);
+              const prevBalance    = prevCharges.reduce((s, c) => s + Number(c.amount), 0) - prevPayments.reduce((s, p) => s + Number(p.amount), 0);
+              const totalDue       = currentTotal + prevBalance - currentPaid;
+              const [yr, mo]       = period.split("-");
+              const monthLabel     = new Date(Number(yr), Number(mo) - 1, 1).toLocaleString("en-PH", { month: "long", year: "numeric" });
+              return (
+                <div className="space-y-3">
+                  {/* Current charges */}
+                  <div>
+                    <p className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">Current Month — {monthLabel}</p>
+                    <div className="bg-slate-50 rounded-xl overflow-hidden">
+                      {currentCharges.length === 0
+                        ? <p className="text-xs text-slate-400 text-center py-3">No charges for this period</p>
+                        : currentCharges.map(ch => (
+                          <div key={ch.id} className="flex justify-between px-3 py-2 border-b border-slate-100 last:border-0">
+                            <span className="text-xs text-slate-700">{ch.remarks || ch.type}</span>
+                            <span className="text-xs font-semibold text-rose-600">{fmtCurrency(ch.amount)}</span>
+                          </div>
+                        ))
+                      }
+                      <div className="flex justify-between px-3 py-2 bg-slate-100">
+                        <span className="text-xs font-bold text-slate-700">Subtotal</span>
+                        <span className="text-xs font-bold text-slate-800">{fmtCurrency(currentTotal)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Previous balance */}
+                  {prevBalance !== 0 && (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{color: prevBalance > 0 ? "#92400e" : "#065f46"}}>
+                        {prevBalance > 0 ? "Previous Unpaid Balance" : "Previous Credit Balance"}
+                      </p>
+                      <div className={`rounded-xl px-3 py-2.5 flex justify-between items-center ${prevBalance > 0 ? "bg-amber-50 border border-amber-200" : "bg-emerald-50 border border-emerald-200"}`}>
+                        <span className="text-xs font-medium" style={{color: prevBalance > 0 ? "#92400e" : "#065f46"}}>
+                          {prevBalance > 0 ? "Unpaid from previous months" : "Credit from overpayments"}
+                        </span>
+                        <span className="text-xs font-bold" style={{color: prevBalance > 0 ? "#92400e" : "#065f46"}}>
+                          {prevBalance > 0 ? "+" : ""}{fmtCurrency(prevBalance)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payments this month */}
+                  {currentPaid > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-2">Payments This Month</p>
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 flex justify-between">
+                        <span className="text-xs text-emerald-700 font-medium">Amount received</span>
+                        <span className="text-xs font-bold text-emerald-700">- {fmtCurrency(currentPaid)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Total due */}
+                  <div className={`rounded-xl p-4 ${totalDue > 0 ? "bg-rose-50 border-2 border-rose-200" : "bg-emerald-50 border-2 border-emerald-200"}`}>
+                    <div className="flex justify-between items-center">
+                      <span className={`text-sm font-black uppercase tracking-wide ${totalDue > 0 ? "text-rose-700" : "text-emerald-700"}`}>Amount Due</span>
+                      <span className={`text-xl font-black ${totalDue > 0 ? "text-rose-700" : "text-emerald-700"}`}>{fmtCurrency(totalDue)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <button
+              onClick={() => { printMonthlySoa(soaModal.tenant, soaPeriod); }}
+              className="w-full bg-emerald-600 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-700 flex items-center justify-center gap-2"
+            >
+              <Icon name="download" size={16} /> Print Monthly SOA
+            </button>
           </div>
         </AppModal>
       )}
