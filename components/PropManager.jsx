@@ -4,7 +4,10 @@ import { useState, useEffect } from "react";
 // ─── SUPABASE CONFIG ─────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://lykhisfpiupivljmrvwm.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5a2hpc2ZwaXVwaXZsam1ydndtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDQ0MDgsImV4cCI6MjA5NjM4MDQwOH0.L4Xx-JxCgpCP2A6tB1VbYonBZnUdN9p7eNlf7vflhfU";
+const SESSION_KEY = "propmanager_user";
+const OWNER_NAME  = "by Yoly";
 
+// ─── API ─────────────────────────────────────────────────────────────────────
 const api = async (table, method = "GET", body = null, query = "") => {
   try {
     const headers = {
@@ -14,39 +17,32 @@ const api = async (table, method = "GET", body = null, query = "") => {
     };
     if (method === "POST") headers["Prefer"] = "return=representation";
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
+      method, headers, body: body ? JSON.stringify(body) : undefined,
     });
     if (method === "DELETE" || method === "PATCH") return { ok: res.ok };
-    if (!res.ok) { console.error("API error on " + table + ":", res.status); return { data: [], ok: false }; }
+    if (!res.ok) { console.error("API error", table, res.status); return { data: [], ok: false }; }
     const data = await res.json();
     return { data: Array.isArray(data) ? data : [], ok: true };
   } catch (err) {
-    console.error("API fetch error on " + table + ":", err);
+    console.error("API fetch error", table, err);
     return { data: [], ok: false };
   }
 };
 
-// ─── CONSTANTS ───────────────────────────────────────────────────────────────
-const OWNER_NAME = "by Yoly";
-const RESET_PASSWORD = "Terminus8@";
-const SESSION_KEY = "propmanager_user";
-
-// ─── UTILS ────────────────────────────────────────────────────────────────────
+// ─── UTILS ───────────────────────────────────────────────────────────────────
 const fmtCurrency = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 });
 const fmtDate = (s) => s ? new Date(s).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—";
 const today = () => new Date().toISOString().split("T")[0];
-const uid = (p) => p + Date.now() + Math.random().toString(36).slice(2, 6).toUpperCase();
+const uid   = (p) => p + Date.now() + Math.random().toString(36).slice(2, 6).toUpperCase();
 
 const mapProperty = (r) => ({ id: r.id, name: r.name, building: r.building, unit: r.unit, floor: r.floor, parking: r.parking, status: r.status });
 const mapTenant   = (r) => ({ id: r.id, name: r.name, phone: r.phone, email: r.email, govId: r.gov_id, propertyId: r.property_id, leaseStart: r.lease_start, leaseEnd: r.lease_end, deposit: r.deposit, advance: r.advance, monthlyRent: r.monthly_rent, dues: r.dues, parking: r.parking });
 const mapCharge   = (r) => ({ id: r.id, tenantId: r.tenant_id, period: r.period, type: r.type, amount: r.amount, date: r.date, remarks: r.remarks });
 const mapPayment  = (r) => ({ id: r.id, tenantId: r.tenant_id, date: r.date, amount: r.amount, method: r.method, reference: r.reference, notes: r.notes });
-const toDBProperty = (p) => ({ id: p.id, name: p.name, building: p.building, unit: p.unit, floor: p.floor, parking: p.parking, status: p.status });
-const toDBTenant   = (t) => ({ id: t.id, name: t.name, phone: t.phone, email: t.email, gov_id: t.govId, property_id: t.propertyId, lease_start: t.leaseStart, lease_end: t.leaseEnd, deposit: t.deposit, advance: t.advance, monthly_rent: t.monthlyRent, dues: t.dues, parking: t.parking });
-const toDBCharge   = (c) => ({ id: c.id, tenant_id: c.tenantId, period: c.period, type: c.type, amount: c.amount, date: c.date, remarks: c.remarks });
-const toDBPayment  = (p) => ({ id: p.id, tenant_id: p.tenantId, date: p.date, amount: p.amount, method: p.method, reference: p.reference, notes: p.notes });
+const toDBProperty = (p, uid) => ({ id: p.id, user_id: uid, name: p.name, building: p.building, unit: p.unit, floor: p.floor, parking: p.parking, status: p.status });
+const toDBTenant   = (t, uid) => ({ id: t.id, user_id: uid, name: t.name, phone: t.phone, email: t.email, gov_id: t.govId, property_id: t.propertyId, lease_start: t.leaseStart, lease_end: t.leaseEnd, deposit: t.deposit, advance: t.advance, monthly_rent: t.monthlyRent, dues: t.dues, parking: t.parking });
+const toDBCharge   = (c, uid) => ({ id: c.id, user_id: uid, tenant_id: c.tenantId, period: c.period, type: c.type, amount: c.amount, date: c.date, remarks: c.remarks });
+const toDBPayment  = (p, uid) => ({ id: p.id, user_id: uid, tenant_id: p.tenantId, date: p.date, amount: p.amount, method: p.method, reference: p.reference, notes: p.notes });
 
 function getTenantBalance(tenantId, charges, payments) {
   const c = charges.filter(x => x.tenantId === tenantId).reduce((s, x) => s + Number(x.amount), 0);
@@ -79,6 +75,39 @@ function printHTML(html, title = "Report") {
   w.document.close();
   setTimeout(() => w.print(), 400);
 }
+
+// ─── HOTEL LOGO SVG ──────────────────────────────────────────────────────────
+const HotelLogo = ({ size = 32 }) => (
+  <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* Building base */}
+    <rect width="40" height="40" rx="10" fill="#4338ca"/>
+    {/* Main tower */}
+    <rect x="13" y="10" width="14" height="22" fill="white" opacity="0.95"/>
+    {/* Left wing */}
+    <rect x="6" y="16" width="8" height="16" fill="white" opacity="0.75"/>
+    {/* Right wing */}
+    <rect x="26" y="16" width="8" height="16" fill="white" opacity="0.75"/>
+    {/* Roof peak center */}
+    <polygon points="20,4 27,10 13,10" fill="white" opacity="0.9"/>
+    {/* Windows center tower - row 1 */}
+    <rect x="16" y="13" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
+    <rect x="21" y="13" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
+    {/* Windows center tower - row 2 */}
+    <rect x="16" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
+    <rect x="21" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
+    {/* Windows left wing */}
+    <rect x="8" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
+    <rect x="8" y="25" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
+    {/* Windows right wing */}
+    <rect x="29" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
+    <rect x="29" y="25" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
+    {/* Door */}
+    <rect x="17.5" y="26" width="5" height="6" rx="2.5" fill="#4338ca" opacity="0.8"/>
+    {/* Flag on top */}
+    <line x1="20" y1="4" x2="20" y2="1" stroke="white" strokeWidth="1" opacity="0.8"/>
+    <polygon points="20,1 23,2.5 20,4" fill="#fbbf24"/>
+  </svg>
+);
 
 // ─── ICONS ───────────────────────────────────────────────────────────────────
 const Icon = ({ name, size = 18, className = "" }) => {
@@ -151,15 +180,14 @@ const Textarea = (props) => <textarea {...props} className="w-full border border
 const OwnerWatermark = () => <p className="text-xs text-slate-300 font-semibold tracking-widest text-right mt-1 mb-3 uppercase select-none">{OWNER_NAME}</p>;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// AUTH SCREENS
+// AUTH SCREEN
 // ═══════════════════════════════════════════════════════════════════════════════
 const AuthScreen = ({ onLogin }) => {
-  const [mode, setMode] = useState("signin"); // "signin" | "signup"
+  const [mode, setMode] = useState("signin");
   const [form, setForm] = useState({ name: "", email: "", password: "", code: "" });
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setError(""); };
 
   const handleSignIn = async () => {
@@ -167,17 +195,14 @@ const AuthScreen = ({ onLogin }) => {
     setLoading(true);
     try {
       const { data, ok } = await api("app_users", "GET", null, `?email=eq.${encodeURIComponent(form.email.toLowerCase())}&select=*`);
-      if (!ok || !data || data.length === 0) { setError("No account found with that email."); setLoading(false); return; }
+      if (!ok || !data || data.length === 0) { setError("No account found with that email."); return; }
       const user = data[0];
-      if (user.password !== form.password) { setError("Incorrect password."); setLoading(false); return; }
-      const userData = { id: user.id, name: user.name, email: user.email };
+      if (user.password !== form.password) { setError("Incorrect password."); return; }
+      const userData = { id: user.id, name: user.name, email: user.email, inviteCode: user.invite_code };
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(userData));
       onLogin(userData);
-    } catch (err) {
-      setError("Connection error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError("Connection error. Please try again."); }
+    finally { setLoading(false); }
   };
 
   const handleSignUp = async () => {
@@ -186,63 +211,45 @@ const AuthScreen = ({ onLogin }) => {
     setLoading(true);
     try {
       const { data: codes, ok: cok } = await api("invite_codes", "GET", null, `?code=eq.${encodeURIComponent(form.code.toUpperCase())}&select=*`);
-      if (!cok || !codes || codes.length === 0) { setError("Invalid invite code."); setLoading(false); return; }
-      if (codes[0].used_by) { setError("This invite code has already been used."); setLoading(false); return; }
+      if (!cok || !codes || codes.length === 0) { setError("Invalid invite code."); return; }
+      if (codes[0].used_by) { setError("This invite code has already been used."); return; }
       const { data: existing } = await api("app_users", "GET", null, `?email=eq.${encodeURIComponent(form.email.toLowerCase())}&select=id`);
-      if (existing && existing.length > 0) { setError("An account with this email already exists."); setLoading(false); return; }
+      if (existing && existing.length > 0) { setError("An account with this email already exists."); return; }
       const userId = uid("USR");
       const { ok } = await api("app_users", "POST", [{ id: userId, name: form.name, email: form.email.toLowerCase(), password: form.password, invite_code: form.code.toUpperCase() }]);
-      if (!ok) { setError("Something went wrong. Please try again."); setLoading(false); return; }
+      if (!ok) { setError("Something went wrong. Please try again."); return; }
       await api("invite_codes", "PATCH", { used_by: form.email.toLowerCase(), used_at: new Date().toISOString() }, `?code=eq.${encodeURIComponent(form.code.toUpperCase())}`);
-      const userData = { id: userId, name: form.name, email: form.email.toLowerCase() };
+      const userData = { id: userId, name: form.name, email: form.email.toLowerCase(), inviteCode: form.code.toUpperCase() };
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(userData));
       onLogin(userData);
-    } catch (err) {
-      setError("Connection error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError("Connection error. Please try again."); }
+    finally { setLoading(false); }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-slate-50 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg mb-3">
-            <span className="text-white text-3xl font-bold">P</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-800">PropManager</h1>
+          <HotelLogo size={64} />
+          <h1 className="text-2xl font-bold text-slate-800 mt-3">PropManager</h1>
           <p className="text-sm text-indigo-400 font-semibold tracking-widest uppercase mt-0.5">{OWNER_NAME}</p>
         </div>
-
-        {/* Card */}
         <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
-          {/* Tabs */}
           <div className="flex border-b border-slate-100">
             <button onClick={() => { setMode("signin"); setError(""); }} className={`flex-1 py-3.5 text-sm font-bold transition-colors ${mode === "signin" ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50" : "text-slate-400 hover:text-slate-600"}`}>Sign In</button>
             <button onClick={() => { setMode("signup"); setError(""); }} className={`flex-1 py-3.5 text-sm font-bold transition-colors ${mode === "signup" ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50" : "text-slate-400 hover:text-slate-600"}`}>Sign Up</button>
           </div>
-
           <div className="p-6 space-y-3">
             {mode === "signup" && (
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Full Name</label>
-                <div className="relative">
-                  <Icon name="user" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Your full name" className="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50" />
-                </div>
+                <div className="relative"><Icon name="user" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Your full name" className="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50" /></div>
               </div>
             )}
-
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Email</label>
-              <div className="relative">
-                <Icon name="user" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="you@email.com" className="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50" />
-              </div>
+              <div className="relative"><Icon name="user" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="you@email.com" className="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50" /></div>
             </div>
-
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Password</label>
               <div className="relative">
@@ -251,30 +258,20 @@ const AuthScreen = ({ onLogin }) => {
                 <button onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><Icon name={showPw ? "eyeoff" : "eye"} size={15} /></button>
               </div>
             </div>
-
             {mode === "signup" && (
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Invite Code</label>
-                <div className="relative">
-                  <Icon name="key" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="PROP-XXXX-YOLY" className="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50 font-mono tracking-widest" />
-                </div>
+                <div className="relative"><Icon name="key" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="PROP-XXXX-YOLY" className="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50 font-mono tracking-widest" /></div>
                 <p className="text-xs text-slate-400 mt-1">You need an invite code from Yoly to sign up.</p>
               </div>
             )}
-
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 flex items-center gap-2">
                 <Icon name="alert" size={14} className="text-red-500 flex-shrink-0" />
                 <p className="text-xs text-red-700 font-medium">{error}</p>
               </div>
             )}
-
-            <button
-              onClick={mode === "signin" ? handleSignIn : handleSignUp}
-              disabled={loading}
-              className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-60 mt-1"
-            >
+            <button onClick={mode === "signin" ? handleSignIn : handleSignUp} disabled={loading} className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-60 mt-1">
               {loading ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
             </button>
           </div>
@@ -286,129 +283,131 @@ const AuthScreen = ({ onLogin }) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MAIN APP
+// ROOT
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    const saved = sessionStorage.getItem(SESSION_KEY);
-    if (saved) setCurrentUser(JSON.parse(saved));
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (saved) setCurrentUser(JSON.parse(saved));
+    } catch {}
     setAuthChecked(true);
   }, []);
 
-  const handleLogout = () => {
-    sessionStorage.removeItem(SESSION_KEY);
-    setCurrentUser(null);
-  };
+  const handleLogout = () => { sessionStorage.removeItem(SESSION_KEY); setCurrentUser(null); };
 
   if (!authChecked) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center animate-pulse">
-        <span className="text-white text-xl font-bold">P</span>
-      </div>
+      <div className="animate-pulse"><HotelLogo size={56} /></div>
     </div>
   );
 
   if (!currentUser) return <AuthScreen onLogin={setCurrentUser} />;
-
   return <MainApp currentUser={currentUser} onLogout={handleLogout} />;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MAIN APP (after login)
+// MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════════
 function MainApp({ currentUser, onLogout }) {
+  const userId = currentUser.id;
+  const userQ  = `&user_id=eq.${userId}`;  // filter all queries by this user
+
   const [tab, setTab] = useState("dashboard");
   const [properties, setProperties] = useState([]);
-  const [tenants, setTenants] = useState([]);
-  const [charges, setCharges] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [modal, setModal] = useState(null);
+  const [tenants,    setTenants]    = useState([]);
+  const [charges,    setCharges]    = useState([]);
+  const [payments,   setPayments]   = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [syncing,    setSyncing]    = useState(false);
+  const [modal,      setModal]      = useState(null);
   const closeModal = () => setModal(null);
 
   const [payForm, setPayForm] = useState({ tenantId: "", date: today(), amount: "", method: "Cash", reference: "", notes: "" });
-  const [tForm, setTForm] = useState({});
-  const [pForm, setPForm] = useState({});
-  const [cForm, setCForm] = useState({ tenantId: "", period: today().slice(0, 7), type: "Rent", amount: "", date: today(), remarks: "" });
+  const [tForm,   setTForm]   = useState({});
+  const [pForm,   setPForm]   = useState({});
+  const [cForm,   setCForm]   = useState({ tenantId: "", period: today().slice(0, 7), type: "Rent", amount: "", date: today(), remarks: "" });
   const [resetPwd, setResetPwd] = useState("");
   const [resetErr, setResetErr] = useState(false);
 
+  // ── LOAD (only this user's data) ──
   const loadAll = async () => {
     setLoading(true);
     try {
       const [pr, tr, cr, pmr] = await Promise.all([
-        api("properties", "GET", null, "?select=*&order=id"),
-        api("tenants",    "GET", null, "?select=*&order=id"),
-        api("charges",    "GET", null, "?select=*&order=date.desc"),
-        api("payments",   "GET", null, "?select=*&order=date.desc"),
+        api("properties", "GET", null, `?select=*&user_id=eq.${userId}&order=id`),
+        api("tenants",    "GET", null, `?select=*&user_id=eq.${userId}&order=id`),
+        api("charges",    "GET", null, `?select=*&user_id=eq.${userId}&order=date.desc`),
+        api("payments",   "GET", null, `?select=*&user_id=eq.${userId}&order=date.desc`),
       ]);
       if (pr.data)  setProperties(pr.data.map(mapProperty));
       if (tr.data)  setTenants(tr.data.map(mapTenant));
       if (cr.data)  setCharges(cr.data.map(mapCharge));
       if (pmr.data) setPayments(pmr.data.map(mapPayment));
-    } catch (err) {
-      console.error("loadAll error:", err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error("loadAll error:", err); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { loadAll(); }, []);
 
+  // ── SAVE PAYMENT ──
   const savePayment = async () => {
     if (!payForm.tenantId || !payForm.amount) return alert("Fill required fields");
     const p = { id: uid("PMT"), ...payForm, amount: parseFloat(payForm.amount) };
     setSyncing(true);
-    await api("payments", "POST", [toDBPayment(p)]);
+    await api("payments", "POST", [toDBPayment(p, userId)]);
     setPayments(prev => [p, ...prev]);
     setPayForm({ tenantId: "", date: today(), amount: "", method: "Cash", reference: "", notes: "" });
     setSyncing(false); closeModal();
   };
 
+  // ── SAVE TENANT ──
   const saveTenant = async () => {
     if (!tForm.name || !tForm.propertyId) return alert("Fill required fields");
     setSyncing(true);
     if (tForm.id) {
-      await api("tenants", "PATCH", toDBTenant(tForm), `?id=eq.${tForm.id}`);
+      await api("tenants", "PATCH", toDBTenant(tForm, userId), `?id=eq.${tForm.id}${userQ}`);
       setTenants(prev => prev.map(t => t.id === tForm.id ? tForm : t));
     } else {
       const t = { id: uid("T"), monthlyRent: 0, dues: 0, parking: 0, deposit: 0, advance: 0, ...tForm };
-      await api("tenants", "POST", [toDBTenant(t)]);
-      await api("properties", "PATCH", { status: "Occupied" }, `?id=eq.${t.propertyId}`);
+      await api("tenants", "POST", [toDBTenant(t, userId)]);
+      await api("properties", "PATCH", { status: "Occupied" }, `?id=eq.${t.propertyId}${userQ}`);
       setTenants(prev => [t, ...prev]);
       setProperties(prev => prev.map(p => p.id === t.propertyId ? { ...p, status: "Occupied" } : p));
     }
     setSyncing(false); closeModal();
   };
 
+  // ── SAVE PROPERTY ──
   const saveProperty = async () => {
     if (!pForm.name || !pForm.unit) return alert("Fill required fields");
     setSyncing(true);
     if (pForm.id) {
-      await api("properties", "PATCH", toDBProperty(pForm), `?id=eq.${pForm.id}`);
+      await api("properties", "PATCH", toDBProperty(pForm, userId), `?id=eq.${pForm.id}${userQ}`);
       setProperties(prev => prev.map(p => p.id === pForm.id ? pForm : p));
     } else {
       const prop = { id: uid("P"), status: "Vacant", ...pForm };
-      await api("properties", "POST", [toDBProperty(prop)]);
+      await api("properties", "POST", [toDBProperty(prop, userId)]);
       setProperties(prev => [prop, ...prev]);
     }
     setSyncing(false); closeModal();
   };
 
+  // ── SAVE CHARGE ──
   const saveCharge = async () => {
     if (!cForm.tenantId || !cForm.amount) return alert("Fill required fields");
     const c = { id: uid("C"), ...cForm, amount: parseFloat(cForm.amount) };
     setSyncing(true);
-    await api("charges", "POST", [toDBCharge(c)]);
+    await api("charges", "POST", [toDBCharge(c, userId)]);
     setCharges(prev => [c, ...prev]);
     setCForm({ tenantId: "", period: today().slice(0, 7), type: "Rent", amount: "", date: today(), remarks: "" });
     setSyncing(false); closeModal();
   };
 
+  // ── GENERATE BILLING ──
   const generateMonthlyBilling = async (period) => {
     const existing = charges.filter(c => c.period === period);
     const newC = [];
@@ -422,54 +421,54 @@ function MainApp({ currentUser, onLogout }) {
     });
     if (newC.length === 0) return alert("Billing already generated or no occupied units.");
     setSyncing(true);
-    await api("charges", "POST", newC.map(toDBCharge));
+    await api("charges", "POST", newC.map(c => toDBCharge(c, userId)));
     setCharges(prev => [...prev, ...newC]);
     setSyncing(false);
     alert(`Generated ${newC.length} charge records for ${period}.`);
   };
 
+  // ── RESET — password is user's own invite code ──
   const handleReset = async () => {
-    if (resetPwd !== RESET_PASSWORD) { setResetErr(true); setResetPwd(""); return; }
+    if (resetPwd.toUpperCase() !== (currentUser.inviteCode || "").toUpperCase()) {
+      setResetErr(true); setResetPwd(""); return;
+    }
     setSyncing(true);
-    await api("payments",   "DELETE", null, "?id=neq.null");
-    await api("charges",    "DELETE", null, "?id=neq.null");
-    await api("tenants",    "DELETE", null, "?id=neq.null");
-    await api("properties", "DELETE", null, "?id=neq.null");
+    await api("payments",   "DELETE", null, `?user_id=eq.${userId}`);
+    await api("charges",    "DELETE", null, `?user_id=eq.${userId}`);
+    await api("tenants",    "DELETE", null, `?user_id=eq.${userId}`);
+    await api("properties", "DELETE", null, `?user_id=eq.${userId}`);
     setProperties([]); setTenants([]); setCharges([]); setPayments([]);
     setResetPwd(""); setResetErr(false); setSyncing(false); closeModal();
   };
 
+  // ── PRINT ──
   const printSOA = (tenant) => {
     const ledger = getLedger(tenant.id, charges, payments);
     const prop = properties.find(p => p.id === tenant.propertyId);
     const balance = getTenantBalance(tenant.id, charges, payments);
     const rows = ledger.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${e.desc}</td><td class="right">${e.debit ? fmtCurrency(e.debit) : "—"}</td><td class="right">${e.credit ? fmtCurrency(e.credit) : "—"}</td><td class="right bold">${fmtCurrency(e.balance)}</td></tr>`).join("");
-    printHTML(`<div class="header"><div><div class="logo">🏢 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Statement of Account</p></div><div style="text-align:right;font-size:11px;color:#64748b">Generated: ${fmtDate(today())}</div></div><table style="margin-bottom:16px;border:none"><tr><td style="border:none;padding:2px 0"><b>Tenant:</b> ${tenant.name}</td><td style="border:none;padding:2px 0"><b>Unit:</b> ${prop?.name || "—"}</td></tr><tr><td style="border:none;padding:2px 0"><b>Email:</b> ${tenant.email}</td><td style="border:none;padding:2px 0"><b>Lease End:</b> ${fmtDate(tenant.leaseEnd)}</td></tr></table><table><thead><tr><th>Date</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td colspan="3"></td><td class="right">Outstanding:</td><td class="right">${fmtCurrency(balance)}</td></tr></table>`, `SOA — ${tenant.name}`);
+    printHTML(`<div class="header"><div><div class="logo">🏨 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Statement of Account</p></div><div style="text-align:right;font-size:11px;color:#64748b">Generated: ${fmtDate(today())}</div></div><table style="margin-bottom:16px;border:none"><tr><td style="border:none;padding:2px 0"><b>Tenant:</b> ${tenant.name}</td><td style="border:none;padding:2px 0"><b>Unit:</b> ${prop?.name || "—"}</td></tr><tr><td style="border:none;padding:2px 0"><b>Email:</b> ${tenant.email}</td><td style="border:none;padding:2px 0"><b>Lease End:</b> ${fmtDate(tenant.leaseEnd)}</td></tr></table><table><thead><tr><th>Date</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td colspan="3"></td><td class="right">Outstanding:</td><td class="right">${fmtCurrency(balance)}</td></tr></table>`, `SOA — ${tenant.name}`);
   };
-
   const printReceipt = (payment) => {
     const tenant = tenants.find(t => t.id === payment.tenantId);
     const prop = properties.find(p => p.id === tenant?.propertyId);
     const balance = getTenantBalance(payment.tenantId, charges, payments);
-    printHTML(`<div class="header"><div><div class="logo">🏢 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Official Receipt</p></div><div style="text-align:right"><b>OR#:</b> ${payment.id}<br><span style="color:#64748b;font-size:11px">${fmtDate(payment.date)}</span></div></div><table style="border:none"><tr><td style="border:none;padding:4px 0;width:50%"><b>Received from:</b><br>${tenant?.name || "—"}</td><td style="border:none;padding:4px 0"><b>Unit:</b><br>${prop?.name || "—"}</td></tr><tr><td style="border:none;padding:4px 0"><b>Amount Paid:</b><br><span style="font-size:22px;font-weight:800;color:#4f46e5">${fmtCurrency(payment.amount)}</span></td><td style="border:none;padding:4px 0"><b>Method:</b><br>${payment.method}</td></tr><tr><td style="border:none;padding:4px 0"><b>Reference:</b><br>${payment.reference || "—"}</td><td style="border:none;padding:4px 0"><b>Remaining Balance:</b><br><span class="bold ${balance > 0 ? "red" : "green"}">${fmtCurrency(balance)}</span></td></tr></table>${payment.notes ? `<p style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px"><b>Notes:</b> ${payment.notes}</p>` : ""}<p style="margin-top:32px;font-size:10px;color:#94a3b8;text-align:center">This is an official receipt. Thank you for your payment.</p>`, `Receipt — ${payment.id}`);
+    printHTML(`<div class="header"><div><div class="logo">🏨 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Official Receipt</p></div><div style="text-align:right"><b>OR#:</b> ${payment.id}<br><span style="color:#64748b;font-size:11px">${fmtDate(payment.date)}</span></div></div><table style="border:none"><tr><td style="border:none;padding:4px 0;width:50%"><b>Received from:</b><br>${tenant?.name || "—"}</td><td style="border:none;padding:4px 0"><b>Unit:</b><br>${prop?.name || "—"}</td></tr><tr><td style="border:none;padding:4px 0"><b>Amount Paid:</b><br><span style="font-size:22px;font-weight:800;color:#4f46e5">${fmtCurrency(payment.amount)}</span></td><td style="border:none;padding:4px 0"><b>Method:</b><br>${payment.method}</td></tr><tr><td style="border:none;padding:4px 0"><b>Reference:</b><br>${payment.reference || "—"}</td><td style="border:none;padding:4px 0"><b>Remaining Balance:</b><br><span class="bold ${balance > 0 ? "red" : "green"}">${fmtCurrency(balance)}</span></td></tr></table>${payment.notes ? `<p style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px"><b>Notes:</b> ${payment.notes}</p>` : ""}<p style="margin-top:32px;font-size:10px;color:#94a3b8;text-align:center">This is an official receipt. Thank you for your payment.</p>`, `Receipt — ${payment.id}`);
   };
-
   const printIncomeReport = () => {
     const byMonth = {};
     payments.forEach(p => { const m = p.date?.slice(0, 7); if (m) byMonth[m] = (byMonth[m] || 0) + Number(p.amount); });
     const months = Object.keys(byMonth).sort().reverse();
     const rows = months.map(m => `<tr><td>${m}</td><td class="right">${fmtCurrency(byMonth[m])}</td></tr>`).join("");
     const total = payments.reduce((s, p) => s + Number(p.amount), 0);
-    printHTML(`<div class="header"><div><div class="logo">🏢 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Income Report</p></div><div style="font-size:11px;color:#64748b">As of ${fmtDate(today())}</div></div><table><thead><tr><th>Period</th><th class="right">Collected</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td>Total</td><td class="right">${fmtCurrency(total)}</td></tr></table>`, "Income Report");
+    printHTML(`<div class="header"><div><div class="logo">🏨 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Income Report</p></div><div style="font-size:11px;color:#64748b">As of ${fmtDate(today())}</div></div><table><thead><tr><th>Period</th><th class="right">Collected</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td>Total</td><td class="right">${fmtCurrency(total)}</td></tr></table>`, "Income Report");
   };
 
-  const SyncBar = () => syncing ? (
-    <div className="fixed top-14 left-0 right-0 z-50 bg-indigo-600 text-white text-xs font-semibold text-center py-1.5">Saving…</div>
-  ) : null;
+  const SyncBar = () => syncing ? <div className="fixed top-14 left-0 right-0 z-50 bg-indigo-600 text-white text-xs font-semibold text-center py-1.5">Saving…</div> : null;
 
   if (loading) return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-3">
-      <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center animate-pulse"><span className="text-white text-2xl font-bold">P</span></div>
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
+      <div className="animate-pulse"><HotelLogo size={56} /></div>
       <p className="text-sm text-slate-400">Loading your data…</p>
     </div>
   );
@@ -477,17 +476,20 @@ function MainApp({ currentUser, onLogout }) {
   // ── VIEWS ──
   const DashboardView = () => {
     const occupied = properties.filter(p => p.status === "Occupied").length;
-    const vacant = properties.filter(p => p.status === "Vacant").length;
-    const monthlyRev = tenants.reduce((s, t) => s + Number(t.monthlyRent) + Number(t.dues) + Number(t.parking), 0);
+    const vacant   = properties.filter(p => p.status === "Vacant").length;
+    const monthlyRev  = tenants.reduce((s, t) => s + Number(t.monthlyRent) + Number(t.dues) + Number(t.parking), 0);
     const outstanding = tenants.reduce((s, t) => s + Math.max(0, getTenantBalance(t.id, charges, payments)), 0);
-    const recentPay = [...payments].sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 5);
+    const recentPay   = [...payments].sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 5);
     const expiringLeases = tenants.filter(t => { const d = (new Date(t.leaseEnd) - new Date()) / 86400000; return d > 0 && d < 90; });
     return (
       <div className="space-y-4">
-        <div className="bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-2xl px-5 py-4 shadow-md">
-          <p className="text-indigo-200 text-xs font-semibold uppercase tracking-widest mb-0.5">{OWNER_NAME}</p>
-          <h1 className="text-white text-xl font-bold">Dashboard</h1>
-          <p className="text-indigo-200 text-sm">Welcome, {currentUser.name.split(" ")[0]}</p>
+        <div className="bg-gradient-to-r from-indigo-700 to-indigo-500 rounded-2xl px-5 py-4 shadow-md flex items-center gap-4">
+          <HotelLogo size={48} />
+          <div>
+            <p className="text-indigo-200 text-xs font-semibold uppercase tracking-widest">{OWNER_NAME}</p>
+            <h1 className="text-white text-xl font-bold leading-tight">Dashboard</h1>
+            <p className="text-indigo-200 text-sm">Welcome, {currentUser.name.split(" ")[0]}</p>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <StatCard label="Total Units"     value={properties.length}        icon="building" color="indigo" />
@@ -622,7 +624,7 @@ function MainApp({ currentUser, onLogout }) {
         <div className="space-y-2">
           {payments.length === 0 && <p className="text-center text-slate-400 text-sm py-8">No payments yet.</p>}
           {filtered.map(p => { const t = tenants.find(t => t.id === p.tenantId); return (
-            <Card key={p.id} className="p-4"><div className="flex items-start justify-between"><div className="min-w-0 flex-1"><p className="font-semibold text-slate-800 truncate">{t?.name || "—"}</p><p className="text-xs text-slate-500">{fmtDate(p.date)} · {p.method}</p>{p.reference && <p className="text-xs text-slate-400">Ref: {p.reference}</p>}{p.notes && <p className="text-xs text-slate-400 italic">{p.notes}</p>}</div><div className="text-right ml-2 flex-shrink-0"><p className="text-base font-bold text-emerald-600">{fmtCurrency(p.amount)}</p><button onClick={() => printReceipt(p)} className="text-xs text-indigo-500 hover:underline">Print OR</button></div></div></Card>
+            <Card key={p.id} className="p-4"><div className="flex items-start justify-between"><div className="min-w-0 flex-1"><p className="font-semibold text-slate-800 truncate">{t?.name || "—"}</p><p className="text-xs text-slate-500">{fmtDate(p.date)} · {p.method}</p>{p.reference && <p className="text-xs text-slate-400">Ref: {p.reference}</p>}{p.notes && <p className="text-xs text-slate-400 italic">{p.notes}</p>}</div><div className="text-right ml-2"><p className="text-base font-bold text-emerald-600">{fmtCurrency(p.amount)}</p><button onClick={() => printReceipt(p)} className="text-xs text-indigo-500 hover:underline">Print OR</button></div></div></Card>
           ); })}
         </div>
       </div>
@@ -640,7 +642,7 @@ function MainApp({ currentUser, onLogout }) {
         <div className="space-y-2">
           {charges.length === 0 && <p className="text-center text-slate-400 text-sm py-8">No charges yet.</p>}
           {filtered.map(c => { const t = tenants.find(t => t.id === c.tenantId); return (
-            <Card key={c.id} className="p-4"><div className="flex items-start justify-between"><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="font-semibold text-slate-800 truncate">{t?.name || "—"}</p><span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full flex-shrink-0">{c.type}</span></div><p className="text-xs text-slate-500">{fmtDate(c.date)} · {c.period}</p><p className="text-xs text-slate-400 italic">{c.remarks}</p></div><p className="text-base font-bold text-rose-600 ml-2">{fmtCurrency(c.amount)}</p></div></Card>
+            <Card key={c.id} className="p-4"><div className="flex items-start justify-between"><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="font-semibold text-slate-800 truncate">{t?.name || "—"}</p><span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{c.type}</span></div><p className="text-xs text-slate-500">{fmtDate(c.date)} · {c.period}</p><p className="text-xs text-slate-400 italic">{c.remarks}</p></div><p className="text-base font-bold text-rose-600 ml-2">{fmtCurrency(c.amount)}</p></div></Card>
           ); })}
         </div>
       </div>
@@ -649,12 +651,12 @@ function MainApp({ currentUser, onLogout }) {
 
   const ReportsView = () => {
     const totalCollected = payments.reduce((s, p) => s + Number(p.amount), 0);
-    const totalBilled = charges.reduce((s, c) => s + Number(c.amount), 0);
-    const outstanding = tenants.reduce((s, t) => s + Math.max(0, getTenantBalance(t.id, charges, payments)), 0);
+    const totalBilled    = charges.reduce((s, c) => s + Number(c.amount), 0);
+    const outstanding    = tenants.reduce((s, t) => s + Math.max(0, getTenantBalance(t.id, charges, payments)), 0);
     const byMethod = payments.reduce((acc, p) => { acc[p.method] = (acc[p.method] || 0) + Number(p.amount); return acc; }, {});
     const printOutstanding = () => {
       const rows = tenants.map(t => { const b = getTenantBalance(t.id, charges, payments); const prop = properties.find(p => p.id === t.propertyId); return `<tr><td>${t.name}</td><td>${prop?.name || "—"}</td><td class="right bold ${b > 0 ? "red" : "green"}">${fmtCurrency(b)}</td></tr>`; }).join("");
-      printHTML(`<div class="header"><div><div class="logo">🏢 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Outstanding Balances</p></div><div style="font-size:11px;color:#64748b">${fmtDate(today())}</div></div><table><thead><tr><th>Tenant</th><th>Unit</th><th class="right">Balance</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td colspan="2">Total Outstanding</td><td class="right">${fmtCurrency(outstanding)}</td></tr></table>`, "Outstanding Balances");
+      printHTML(`<div class="header"><div><div class="logo">🏨 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Outstanding Balances</p></div><div style="font-size:11px;color:#64748b">${fmtDate(today())}</div></div><table><thead><tr><th>Tenant</th><th>Unit</th><th class="right">Balance</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td colspan="2">Total Outstanding</td><td class="right">${fmtCurrency(outstanding)}</td></tr></table>`, "Outstanding Balances");
     };
     return (
       <div className="space-y-4">
@@ -703,7 +705,7 @@ function MainApp({ currentUser, onLogout }) {
       <div className="sticky top-0 z-40 bg-white border-b border-slate-100 shadow-sm">
         <div className="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center"><span className="text-white text-sm font-bold">P</span></div>
+            <HotelLogo size={32} />
             <div><span className="font-bold text-slate-800 text-sm leading-none">PropManager</span><p className="text-[10px] text-indigo-400 font-semibold leading-none">{OWNER_NAME}</p></div>
           </div>
           <div className="flex items-center gap-2">
@@ -741,7 +743,6 @@ function MainApp({ currentUser, onLogout }) {
           <button onClick={savePayment} className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold mt-2 hover:bg-indigo-700">Save Payment</button>
         </AppModal>
       )}
-
       {modal?.type === "tenant" && (
         <AppModal title={tForm.id ? "Edit Tenant" : "Add Tenant"} onClose={closeModal}>
           <Field label="Full Name *"><Input value={tForm.name || ""} onChange={e => setTForm(f => ({ ...f, name: e.target.value }))} /></Field>
@@ -760,7 +761,6 @@ function MainApp({ currentUser, onLogout }) {
           <button onClick={saveTenant} className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold mt-2 hover:bg-indigo-700">{tForm.id ? "Update" : "Add Tenant"}</button>
         </AppModal>
       )}
-
       {modal?.type === "property" && (
         <AppModal title={pForm.id ? "Edit Unit" : "Add Unit"} onClose={closeModal}>
           <Field label="Property Name *"><Input value={pForm.name || ""} onChange={e => setPForm(f => ({ ...f, name: e.target.value }))} /></Field>
@@ -774,7 +774,6 @@ function MainApp({ currentUser, onLogout }) {
           <button onClick={saveProperty} className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold mt-2 hover:bg-indigo-700">{pForm.id ? "Update" : "Add Unit"}</button>
         </AppModal>
       )}
-
       {modal?.type === "charge" && (
         <AppModal title="Add Charge" onClose={closeModal}>
           <Field label="Tenant *"><AppSelect value={cForm.tenantId} onChange={e => setCForm(f => ({ ...f, tenantId: e.target.value }))}><option value="">Select tenant…</option>{tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</AppSelect></Field>
@@ -788,19 +787,18 @@ function MainApp({ currentUser, onLogout }) {
           <button onClick={saveCharge} className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold mt-2 hover:bg-indigo-700">Add Charge</button>
         </AppModal>
       )}
-
       {modal?.type === "reset" && (
         <AppModal title="Reset All Data" onClose={closeModal}>
           <div className="flex flex-col items-center text-center gap-3 py-2">
             <div className="w-14 h-14 bg-rose-100 rounded-2xl flex items-center justify-center"><Icon name="trash" size={28} className="text-rose-500" /></div>
-            <div><p className="font-bold text-slate-800">This will erase everything.</p><p className="text-sm text-slate-500 mt-1">All data in Supabase will be permanently deleted.</p></div>
+            <div><p className="font-bold text-slate-800">This will erase your data.</p><p className="text-sm text-slate-500 mt-1">Enter your invite code to confirm. This cannot be undone.</p></div>
           </div>
           <div className="mt-4">
-            <Field label="Password">
-              <div className="relative"><Icon name="lock" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="password" value={resetPwd} onChange={e => { setResetPwd(e.target.value); setResetErr(false); }} onKeyDown={e => e.key === "Enter" && handleReset()} placeholder="Enter password…" className={`w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 bg-slate-50 ${resetErr ? "border-rose-400 focus:ring-rose-300" : "border-slate-200 focus:ring-indigo-400"}`} /></div>
-              {resetErr && <p className="text-xs text-rose-500 mt-1 font-semibold">Incorrect password.</p>}
+            <Field label="Your Invite Code">
+              <div className="relative"><Icon name="key" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="text" value={resetPwd} onChange={e => { setResetPwd(e.target.value.toUpperCase()); setResetErr(false); }} onKeyDown={e => e.key === "Enter" && handleReset()} placeholder="PROP-XXXX-YOLY" className={`w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 bg-slate-50 font-mono tracking-widest ${resetErr ? "border-rose-400 focus:ring-rose-300" : "border-slate-200 focus:ring-indigo-400"}`} /></div>
+              {resetErr && <p className="text-xs text-rose-500 mt-1 font-semibold">Incorrect code. Try again.</p>}
             </Field>
-            <button onClick={handleReset} className="w-full bg-rose-600 text-white rounded-xl py-3 text-sm font-bold hover:bg-rose-700">Delete All Data</button>
+            <button onClick={handleReset} className="w-full bg-rose-600 text-white rounded-xl py-3 text-sm font-bold hover:bg-rose-700">Delete All My Data</button>
             <button onClick={closeModal} className="w-full mt-2 border-2 border-slate-200 text-slate-600 rounded-xl py-3 text-sm font-bold hover:bg-slate-50">Cancel</button>
           </div>
         </AppModal>
