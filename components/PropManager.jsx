@@ -82,39 +82,37 @@ function printHTML(html, title = "Report") {
   setTimeout(() => w.print(), 400);
 }
 
-// Shared print header — hotel SVG + EULA name
-const PRINT_HEADER = (docTitle, dateStr) => \`
-  <div class="header">
-    <div class="logo-wrap">
-      <svg class="logo-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="40" height="40" rx="10" fill="#4338ca"/>
-        <rect x="13" y="10" width="14" height="22" fill="white" opacity="0.95"/>
-        <rect x="6" y="16" width="8" height="16" fill="white" opacity="0.75"/>
-        <rect x="26" y="16" width="8" height="16" fill="white" opacity="0.75"/>
-        <polygon points="20,4 27,10 13,10" fill="white" opacity="0.9"/>
-        <rect x="16" y="13" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
-        <rect x="21" y="13" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
-        <rect x="16" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
-        <rect x="21" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
-        <rect x="8" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
-        <rect x="8" y="25" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
-        <rect x="29" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
-        <rect x="29" y="25" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
-        <rect x="17.5" y="26" width="5" height="6" rx="2.5" fill="#4338ca" opacity="0.8"/>
-        <line x1="20" y1="4" x2="20" y2="1" stroke="white" stroke-width="1" opacity="0.8"/>
-        <polygon points="20,1 23,2.5 20,4" fill="#fbbf24"/>
-      </svg>
-      <div>
-        <div style="display:flex;align-items:baseline;gap:6px">
-          <span class="logo-text">EULA</span>
-          <span class="logo-sub">— RentalPMS</span>
-        </div>
-        <div class="doc-title">\${docTitle}</div>
-      </div>
-    </div>
-    <div style="text-align:right;font-size:11px;color:#64748b">\${dateStr}</div>
-  </div>
-\`;
+// Shared print header — hotel SVG + EULA name (plain string concat, safe inside template literals)
+function PRINT_HEADER(docTitle, dateStr) {
+  return '<div class="header"><div class="logo-wrap">'
+    + '<svg class="logo-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    + '<rect width="40" height="40" rx="10" fill="#4338ca"/>'
+    + '<rect x="13" y="10" width="14" height="22" fill="white" opacity="0.95"/>'
+    + '<rect x="6" y="16" width="8" height="16" fill="white" opacity="0.75"/>'
+    + '<rect x="26" y="16" width="8" height="16" fill="white" opacity="0.75"/>'
+    + '<polygon points="20,4 27,10 13,10" fill="white" opacity="0.9"/>'
+    + '<rect x="16" y="13" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>'
+    + '<rect x="21" y="13" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>'
+    + '<rect x="16" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>'
+    + '<rect x="21" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>'
+    + '<rect x="8" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>'
+    + '<rect x="8" y="25" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>'
+    + '<rect x="29" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>'
+    + '<rect x="29" y="25" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>'
+    + '<rect x="17.5" y="26" width="5" height="6" rx="2.5" fill="#4338ca" opacity="0.8"/>'
+    + '<line x1="20" y1="4" x2="20" y2="1" stroke="white" stroke-width="1" opacity="0.8"/>'
+    + '<polygon points="20,1 23,2.5 20,4" fill="#fbbf24"/>'
+    + '</svg>'
+    + '<div>'
+    + '<div style="display:flex;align-items:baseline;gap:6px">'
+    + '<span class="logo-text">EULA</span>'
+    + '<span class="logo-sub">&mdash; RentalPMS</span>'
+    + '</div>'
+    + '<div class="doc-title">' + docTitle + '</div>'
+    + '</div></div>'
+    + '<div style="text-align:right;font-size:11px;color:#64748b">' + dateStr + '</div>'
+    + '</div>';
+}
 
 // ─── HOTEL LOGO SVG ──────────────────────────────────────────────────────────
 const HotelLogo = ({ size = 32 }) => (
@@ -489,7 +487,15 @@ function MainApp({ currentUser, onLogout }) {
     const prop = properties.find(p => p.id === tenant.propertyId);
     const balance = getTenantBalance(tenant.id, charges, payments);
     const rows = ledger.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${e.desc}</td><td class="right">${e.debit ? fmtCurrency(e.debit) : "—"}</td><td class="right">${e.credit ? fmtCurrency(e.credit) : "—"}</td><td class="right bold">${fmtCurrency(e.balance)}</td></tr>`).join("");
-    printHTML(`${PRINT_HEADER("Statement of Account", "Generated: " + fmtDate(today()))}<table style="margin-bottom:16px;border:none"><tr><td style="border:none;padding:2px 0"><b>Tenant:</b> ${tenant.name}</td><td style="border:none;padding:2px 0"><b>Unit:</b> ${prop?.name || "—"}</td></tr><tr><td style="border:none;padding:2px 0"><b>Email:</b> ${tenant.email}</td><td style="border:none;padding:2px 0"><b>Lease End:</b> ${fmtDate(tenant.leaseEnd)}</td></tr></table><table><thead><tr><th>Date</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td colspan="3"></td><td class="right">Outstanding:</td><td class="right">${fmtCurrency(balance)}</td></tr></table>`, `SOA — ${tenant.name}`);
+    const soaHtml = PRINT_HEADER("Statement of Account", "Generated: " + fmtDate(today()))
+      + '<table style="margin-bottom:16px;border:none">'
+      + '<tr><td style="border:none;padding:2px 0"><b>Tenant:</b> ' + tenant.name + '</td><td style="border:none;padding:2px 0"><b>Unit:</b> ' + (prop ? prop.name : "—") + '</td></tr>'
+      + '<tr><td style="border:none;padding:2px 0"><b>Email:</b> ' + (tenant.email || "—") + '</td><td style="border:none;padding:2px 0"><b>Lease End:</b> ' + fmtDate(tenant.leaseEnd) + '</td></tr>'
+      + '</table>'
+      + '<table><thead><tr><th>Date</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '<tr class="total-row"><td colspan="3"></td><td class="right">Outstanding:</td><td class="right">' + fmtCurrency(balance) + '</td></tr></table>';
+    printHTML(soaHtml, "SOA — " + tenant.name);
   };
   // ── MONTHLY SOA ──
   const printMonthlySoa = (tenant, period) => {
@@ -536,56 +542,54 @@ function MainApp({ currentUser, onLogout }) {
       <tr style="background:#fefce8"><td colspan="2" style="font-weight:700;color:#92400e">Previous Unpaid Balance (before ${monthName})</td><td class="right bold" style="color:#92400e">${fmtCurrency(prevBalance)}</td></tr>
     ` : "";
 
-    const html = `${PRINT_HEADER("Monthly Statement of Account — " + monthName, "Generated: " + fmtDate(today()))}
+    // Build prev balance section without nested backticks
+    let prevSection = "";
+    if (prevBalance > 0) {
+      prevSection = '<p style="font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#92400e">Previous Unpaid Balance</p>'
+        + '<table><thead><tr><th>Description</th><th class="right">Amount</th></tr></thead><tbody>'
+        + '<tr style="background:#fefce8"><td style="color:#92400e">Unpaid balance from previous months (since ' + fmtDate(tenant.leaseStart) + ')</td>'
+        + '<td class="right bold" style="color:#92400e">' + fmtCurrency(prevBalance) + '</td></tr>'
+        + '</tbody></table>';
+    } else if (prevBalance < 0) {
+      prevSection = '<p style="font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#065f46">Previous Credit Balance</p>'
+        + '<table><thead><tr><th>Description</th><th class="right">Amount</th></tr></thead><tbody>'
+        + '<tr style="background:#f0fdf4"><td style="color:#065f46">Credit from previous overpayments</td>'
+        + '<td class="right bold" style="color:#065f46">(' + fmtCurrency(Math.abs(prevBalance)) + ')</td></tr>'
+        + '</tbody></table>';
+    }
+    const prevSummaryRow = prevBalance > 0
+      ? '<tr><td style="padding:10px 14px;color:#92400e;font-weight:600">Previous Unpaid Balance</td><td class="right bold" style="padding:10px 14px;color:#92400e">+ ' + fmtCurrency(prevBalance) + '</td></tr>'
+      : prevBalance < 0
+      ? '<tr><td style="padding:10px 14px;color:#065f46;font-weight:600">Previous Credit</td><td class="right bold" style="padding:10px 14px;color:#065f46">(' + fmtCurrency(Math.abs(prevBalance)) + ')</td></tr>'
+      : "";
+    const amountDueBg    = remaining > 0 ? "#fff7ed" : "#f0fdf4";
+    const amountDueColor = remaining > 0 ? "#c2410c" : "#065f46";
+    const chargeRowsFinal = chargeRows || '<tr><td colspan="3" style="color:#94a3b8;text-align:center">No charges for this period</td></tr>';
+    const payRowsFinal    = payRows    || '<tr><td colspan="3" style="color:#94a3b8;text-align:center">No payments received this month</td></tr>';
 
-      <table style="margin-bottom:20px;border:none">
-        <tr><td style="border:none;padding:3px 0;width:50%"><b>Tenant:</b> ${tenant.name}</td><td style="border:none;padding:3px 0"><b>Unit:</b> ${prop?.name || "—"}</td></tr>
-        <tr><td style="border:none;padding:3px 0"><b>Phone:</b> ${tenant.phone || "—"}</td><td style="border:none;padding:3px 0"><b>Lease End:</b> ${fmtDate(tenant.leaseEnd)}</td></tr>
-      </table>
+    const html = PRINT_HEADER("Monthly Statement of Account &mdash; " + monthName, "Generated: " + fmtDate(today()))
+      + '<table style="margin-bottom:20px;border:none">'
+      + '<tr><td style="border:none;padding:3px 0;width:50%"><b>Tenant:</b> ' + tenant.name + '</td><td style="border:none;padding:3px 0"><b>Unit:</b> ' + (prop ? prop.name : "—") + '</td></tr>'
+      + '<tr><td style="border:none;padding:3px 0"><b>Phone:</b> ' + (tenant.phone || "—") + '</td><td style="border:none;padding:3px 0"><b>Lease End:</b> ' + fmtDate(tenant.leaseEnd) + '</td></tr>'
+      + '</table>'
+      + '<p style="font-weight:700;font-size:13px;margin-bottom:6px;color:#1e293b">Current Month Charges &mdash; ' + monthName + '</p>'
+      + '<table><thead><tr><th>Date</th><th>Description</th><th class="right">Amount</th></tr></thead>'
+      + '<tbody>' + chargeRowsFinal + '</tbody>'
+      + '<tr class="total-row"><td colspan="2">Total Current Charges</td><td class="right">' + fmtCurrency(currentTotal) + '</td></tr></table>'
+      + prevSection
+      + '<p style="font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#1e293b">Payments Received &mdash; ' + monthName + '</p>'
+      + '<table><thead><tr><th>Date</th><th>Reference</th><th class="right">Amount</th></tr></thead>'
+      + '<tbody>' + payRowsFinal + '</tbody>'
+      + '<tr class="total-row"><td colspan="2">Total Payments This Month</td><td class="right" style="color:#065f46">' + fmtCurrency(currentPaid) + '</td></tr></table>'
+      + '<table style="margin-top:20px;border:2px solid #e2e8f0;border-radius:8px">'
+      + '<tr style="background:#f8fafc"><td style="padding:10px 14px;font-weight:700">Current Month Charges</td><td class="right bold" style="padding:10px 14px">' + fmtCurrency(currentTotal) + '</td></tr>'
+      + prevSummaryRow
+      + '<tr><td style="padding:10px 14px;color:#065f46;font-weight:600">Less: Payments This Month</td><td class="right bold" style="padding:10px 14px;color:#065f46">- ' + fmtCurrency(currentPaid) + '</td></tr>'
+      + '<tr style="background:' + amountDueBg + ';border-top:2px solid #e2e8f0"><td style="padding:12px 14px;font-size:15px;font-weight:800;color:' + amountDueColor + '">AMOUNT DUE</td>'
+      + '<td class="right" style="padding:12px 14px;font-size:18px;font-weight:800;color:' + amountDueColor + '">' + fmtCurrency(remaining) + '</td></tr>'
+      + '</table>'
+      + '<p style="margin-top:28px;font-size:10px;color:#94a3b8;text-align:center">Please pay on or before the due date. Thank you!</p>';
 
-      <p style="font-weight:700;font-size:13px;margin-bottom:6px;color:#1e293b">Current Month Charges — ${monthName}</p>
-      <table>
-        <thead><tr><th>Date</th><th>Description</th><th class="right">Amount</th></tr></thead>
-        <tbody>
-          ${chargeRows || '<tr><td colspan="3" style="color:#94a3b8;text-align:center">No charges for this period</td></tr>'}
-        </tbody>
-        <tr class="total-row"><td colspan="2">Total Current Charges</td><td class="right">${fmtCurrency(currentTotal)}</td></tr>
-      </table>
-
-      ${prevBalance > 0 ? `
-      <p style="font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#92400e">Previous Unpaid Balance</p>
-      <table>
-        <thead><tr><th>Description</th><th class="right">Amount</th></tr></thead>
-        <tbody>
-          <tr style="background:#fefce8"><td style="color:#92400e">Unpaid balance from previous months (since ${fmtDate(tenant.leaseStart)})</td><td class="right bold" style="color:#92400e">${fmtCurrency(prevBalance)}</td></tr>
-        </tbody>
-      </table>` : prevBalance < 0 ? `
-      <p style="font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#065f46">Previous Credit Balance</p>
-      <table>
-        <thead><tr><th>Description</th><th class="right">Amount</th></tr></thead>
-        <tbody>
-          <tr style="background:#f0fdf4"><td style="color:#065f46">Credit from previous overpayments</td><td class="right bold" style="color:#065f46">(${fmtCurrency(Math.abs(prevBalance))})</td></tr>
-        </tbody>
-      </table>` : ""}
-
-      <p style="font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#1e293b">Payments Received — ${monthName}</p>
-      <table>
-        <thead><tr><th>Date</th><th>Reference</th><th class="right">Amount</th></tr></thead>
-        <tbody>
-          ${payRows || '<tr><td colspan="3" style="color:#94a3b8;text-align:center">No payments received this month</td></tr>'}
-        </tbody>
-        <tr class="total-row"><td colspan="2">Total Payments This Month</td><td class="right" style="color:#065f46">${fmtCurrency(currentPaid)}</td></tr>
-      </table>
-
-      <table style="margin-top:20px;border:2px solid #e2e8f0;border-radius:8px">
-        <tr style="background:#f8fafc"><td style="padding:10px 14px;font-weight:700">Current Month Charges</td><td class="right bold" style="padding:10px 14px">${fmtCurrency(currentTotal)}</td></tr>
-        ${prevBalance > 0 ? `<tr><td style="padding:10px 14px;color:#92400e;font-weight:600">Previous Unpaid Balance</td><td class="right bold" style="padding:10px 14px;color:#92400e">+ ${fmtCurrency(prevBalance)}</td></tr>` : prevBalance < 0 ? `<tr><td style="padding:10px 14px;color:#065f46;font-weight:600">Previous Credit</td><td class="right bold" style="padding:10px 14px;color:#065f46">(${fmtCurrency(Math.abs(prevBalance))})</td></tr>` : ""}
-        <tr><td style="padding:10px 14px;color:#065f46;font-weight:600">Less: Payments This Month</td><td class="right bold" style="padding:10px 14px;color:#065f46">- ${fmtCurrency(currentPaid)}</td></tr>
-        <tr style="background:${remaining > 0 ? "#fff7ed" : "#f0fdf4"};border-top:2px solid #e2e8f0"><td style="padding:12px 14px;font-size:15px;font-weight:800;color:${remaining > 0 ? "#c2410c" : "#065f46"}">AMOUNT DUE</td><td class="right" style="padding:12px 14px;font-size:18px;font-weight:800;color:${remaining > 0 ? "#c2410c" : "#065f46"}">${fmtCurrency(remaining)}</td></tr>
-      </table>
-
-      <p style="margin-top:28px;font-size:10px;color:#94a3b8;text-align:center">Please pay on or before the due date. Thank you!</p>
-    `;
 
     printHTML(html, `Monthly SOA — ${tenant.name} — ${monthName}`);
   };
@@ -594,7 +598,19 @@ function MainApp({ currentUser, onLogout }) {
     const tenant = tenants.find(t => t.id === payment.tenantId);
     const prop = properties.find(p => p.id === tenant?.propertyId);
     const balance = getTenantBalance(payment.tenantId, charges, payments);
-    printHTML(`${PRINT_HEADER("Official Receipt", "<b>OR#:</b> " + payment.id + "<br><span style=\"color:#64748b;font-size:11px\">" + fmtDate(payment.date) + "</span>")}<table style="border:none"><tr><td style="border:none;padding:4px 0;width:50%"><b>Received from:</b><br>${tenant?.name || "—"}</td><td style="border:none;padding:4px 0"><b>Unit:</b><br>${prop?.name || "—"}</td></tr><tr><td style="border:none;padding:4px 0"><b>Amount Paid:</b><br><span style="font-size:22px;font-weight:800;color:#4f46e5">${fmtCurrency(payment.amount)}</span></td><td style="border:none;padding:4px 0"><b>Method:</b><br>${payment.method}</td></tr><tr><td style="border:none;padding:4px 0"><b>Reference:</b><br>${payment.reference || "—"}</td><td style="border:none;padding:4px 0"><b>Remaining Balance:</b><br><span class="bold ${balance > 0 ? "red" : "green"}">${fmtCurrency(balance)}</span></td></tr></table>${payment.notes ? `<p style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px"><b>Notes:</b> ${payment.notes}</p>` : ""}<p style="margin-top:32px;font-size:10px;color:#94a3b8;text-align:center">This is an official receipt. Thank you for your payment.</p>`, `Receipt — ${payment.id}`);
+    const notesHtml = payment.notes ? '<p style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px"><b>Notes:</b> ' + payment.notes + '</p>' : '';
+    const balClass = balance > 0 ? "red" : "green";
+    const receiptBody = PRINT_HEADER("Official Receipt", "<b>OR#:</b> " + payment.id + "<br><span style='color:#64748b;font-size:11px'>" + fmtDate(payment.date) + "</span>")
+      + '<table style="border:none">'
+      + '<tr><td style="border:none;padding:4px 0;width:50%"><b>Received from:</b><br>' + (tenant?.name || "—") + '</td>'
+      + '<td style="border:none;padding:4px 0"><b>Unit:</b><br>' + (prop?.name || "—") + '</td></tr>'
+      + '<tr><td style="border:none;padding:4px 0"><b>Amount Paid:</b><br><span style="font-size:22px;font-weight:800;color:#4f46e5">' + fmtCurrency(payment.amount) + '</span></td>'
+      + '<td style="border:none;padding:4px 0"><b>Method:</b><br>' + payment.method + '</td></tr>'
+      + '<tr><td style="border:none;padding:4px 0"><b>Reference:</b><br>' + (payment.reference || "—") + '</td>'
+      + '<td style="border:none;padding:4px 0"><b>Remaining Balance:</b><br><span class="bold ' + balClass + '">' + fmtCurrency(balance) + '</span></td></tr>'
+      + '</table>' + notesHtml
+      + '<p style="margin-top:32px;font-size:10px;color:#94a3b8;text-align:center">This is an official receipt. Thank you for your payment.</p>';
+    printHTML(receiptBody, "Receipt — " + payment.id);
   };
   const printIncomeReport = () => {
     const byMonth = {};
@@ -602,7 +618,11 @@ function MainApp({ currentUser, onLogout }) {
     const months = Object.keys(byMonth).sort().reverse();
     const rows = months.map(m => `<tr><td>${m}</td><td class="right">${fmtCurrency(byMonth[m])}</td></tr>`).join("");
     const total = payments.reduce((s, p) => s + Number(p.amount), 0);
-    printHTML(`${PRINT_HEADER("Monthly Income Report", "As of " + fmtDate(today()))}<table><thead><tr><th>Period</th><th class="right">Collected</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td>Total</td><td class="right">${fmtCurrency(total)}</td></tr></table>`, "Income Report");
+    const incomeHtml = PRINT_HEADER("Monthly Income Report", "As of " + fmtDate(today()))
+      + '<table><thead><tr><th>Period</th><th class="right">Collected</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '<tr class="total-row"><td>Total</td><td class="right">' + fmtCurrency(total) + '</td></tr></table>';
+    printHTML(incomeHtml, "Income Report");
   };
 
   const SyncBar = () => syncing ? <div className="fixed top-14 left-0 right-0 z-50 bg-indigo-600 text-white text-xs font-semibold text-center py-1.5">Saving…</div> : null;
@@ -882,7 +902,11 @@ function MainApp({ currentUser, onLogout }) {
     const byMethod = payments.reduce((acc, p) => { acc[p.method] = (acc[p.method] || 0) + Number(p.amount); return acc; }, {});
     const printOutstanding = () => {
       const rows = tenants.map(t => { const b = getTenantBalance(t.id, charges, payments); const prop = properties.find(p => p.id === t.propertyId); return `<tr><td>${t.name}</td><td>${prop?.name || "—"}</td><td class="right bold ${b > 0 ? "red" : "green"}">${fmtCurrency(b)}</td></tr>`; }).join("");
-      printHTML(`${PRINT_HEADER("Outstanding Balances Report", fmtDate(today()))}<table><thead><tr><th>Tenant</th><th>Unit</th><th class="right">Balance</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td colspan="2">Total Outstanding</td><td class="right">${fmtCurrency(outstanding)}</td></tr></table>`, "Outstanding Balances");
+      const outstandingHtml = PRINT_HEADER("Outstanding Balances Report", fmtDate(today()))
+        + '<table><thead><tr><th>Tenant</th><th>Unit</th><th class="right">Balance</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody>'
+        + '<tr class="total-row"><td colspan="2">Total Outstanding</td><td class="right">' + fmtCurrency(outstanding) + '</td></tr></table>';
+      printHTML(outstandingHtml, "Outstanding Balances");
     };
     return (
       <div className="space-y-4">
