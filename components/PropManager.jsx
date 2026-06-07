@@ -6,6 +6,8 @@ const SUPABASE_URL = "https://lykhisfpiupivljmrvwm.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5a2hpc2ZwaXVwaXZsam1ydndtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDQ0MDgsImV4cCI6MjA5NjM4MDQwOH0.L4Xx-JxCgpCP2A6tB1VbYonBZnUdN9p7eNlf7vflhfU";
 const SESSION_KEY = "propmanager_user";
 const OWNER_NAME  = "by Yoly";
+const APP_NAME = "EULA";
+const APP_SUB  = "RentalPMS";
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 const api = async (table, method = "GET", body = null, query = "") => {
@@ -177,7 +179,7 @@ const Field = ({ label, children }) => (
 const Input = (props) => <input {...props} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50" />;
 const AppSelect = ({ children, ...props }) => <select {...props} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50">{children}</select>;
 const Textarea = (props) => <textarea {...props} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50 min-h-[80px]" />;
-const OwnerWatermark = () => <p className="text-xs text-slate-300 font-semibold tracking-widest text-right mt-1 mb-3 uppercase select-none">{OWNER_NAME}</p>;
+const OwnerWatermark = () => <p className="text-xs text-slate-200 font-semibold tracking-widest text-right mt-1 mb-3 uppercase select-none">EULA RentalPMS</p>;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTH SCREEN
@@ -231,8 +233,8 @@ const AuthScreen = ({ onLogin }) => {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           <HotelLogo size={64} />
-          <h1 className="text-2xl font-bold text-slate-800 mt-3">PropManager</h1>
-          <p className="text-sm text-indigo-400 font-semibold tracking-widest uppercase mt-0.5">{OWNER_NAME}</p>
+          <div className="flex items-baseline gap-2 mt-3"><h1 className="text-3xl font-black text-slate-800 tracking-tight">{APP_NAME}</h1><span className="text-slate-300 text-sm font-medium">—{APP_SUB}</span></div>
+          <p className="text-xs text-slate-400 mt-1">Rental Property Management</p>
         </div>
         <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
           <div className="flex border-b border-slate-100">
@@ -276,7 +278,7 @@ const AuthScreen = ({ onLogin }) => {
             </button>
           </div>
         </div>
-        <p className="text-center text-xs text-slate-400 mt-6">PropManager · Private Access Only</p>
+        <p className="text-center text-xs text-slate-400 mt-6">EULA RentalPMS · Private Access Only</p>
       </div>
     </div>
   );
@@ -469,6 +471,7 @@ function MainApp({ currentUser, onLogout }) {
   if (loading) return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
       <div className="animate-pulse"><HotelLogo size={56} /></div>
+      <div className="flex items-baseline gap-1.5"><span className="font-black text-slate-700 text-xl">{APP_NAME}</span><span className="text-slate-300 text-xs">—{APP_SUB}</span></div>
       <p className="text-sm text-slate-400">Loading your data…</p>
     </div>
   );
@@ -486,9 +489,8 @@ function MainApp({ currentUser, onLogout }) {
         <div className="bg-gradient-to-r from-indigo-700 to-indigo-500 rounded-2xl px-5 py-4 shadow-md flex items-center gap-4">
           <HotelLogo size={48} />
           <div>
-            <p className="text-indigo-200 text-xs font-semibold uppercase tracking-widest">{OWNER_NAME}</p>
-            <h1 className="text-white text-xl font-bold leading-tight">Dashboard</h1>
-            <p className="text-indigo-200 text-sm">Welcome, {currentUser.name.split(" ")[0]}</p>
+              <div className="flex items-baseline gap-2"><span className="text-white text-2xl font-black tracking-tight">{APP_NAME}</span><span className="text-indigo-300 text-sm font-medium">—{APP_SUB}</span></div>
+            <p className="text-indigo-200 text-sm mt-0.5">Welcome, {currentUser.name.split(" ")[0]}</p>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -615,7 +617,25 @@ function MainApp({ currentUser, onLogout }) {
 
   const PaymentsView = () => {
     const [search, setSearch] = useState("");
+    const [editPay, setEditPay] = useState(null);
     const filtered = [...payments].sort((a, b) => (b.date || "").localeCompare(a.date || "")).filter(p => { const t = tenants.find(t => t.id === p.tenantId); return (t?.name || "").toLowerCase().includes(search.toLowerCase()) || (p.reference || "").toLowerCase().includes(search.toLowerCase()); });
+
+    const updatePayment = async () => {
+      if (!editPay.amount) return alert("Amount is required");
+      setSyncing(true);
+      await api("payments", "PATCH", toDBPayment(editPay, userId), `?id=eq.${editPay.id}&user_id=eq.${userId}`);
+      setPayments(prev => prev.map(p => p.id === editPay.id ? editPay : p));
+      setEditPay(null); setSyncing(false);
+    };
+
+    const deletePayment = async (p) => {
+      if (!confirm(`Delete this payment of ${fmtCurrency(p.amount)}? This cannot be undone.`)) return;
+      setSyncing(true);
+      await api("payments", "DELETE", null, `?id=eq.${p.id}&user_id=eq.${userId}`);
+      setPayments(prev => prev.filter(x => x.id !== p.id));
+      setSyncing(false);
+    };
+
     return (
       <div className="space-y-4">
         <OwnerWatermark />
@@ -624,16 +644,55 @@ function MainApp({ currentUser, onLogout }) {
         <div className="space-y-2">
           {payments.length === 0 && <p className="text-center text-slate-400 text-sm py-8">No payments yet.</p>}
           {filtered.map(p => { const t = tenants.find(t => t.id === p.tenantId); return (
-            <Card key={p.id} className="p-4"><div className="flex items-start justify-between"><div className="min-w-0 flex-1"><p className="font-semibold text-slate-800 truncate">{t?.name || "—"}</p><p className="text-xs text-slate-500">{fmtDate(p.date)} · {p.method}</p>{p.reference && <p className="text-xs text-slate-400">Ref: {p.reference}</p>}{p.notes && <p className="text-xs text-slate-400 italic">{p.notes}</p>}</div><div className="text-right ml-2"><p className="text-base font-bold text-emerald-600">{fmtCurrency(p.amount)}</p><button onClick={() => printReceipt(p)} className="text-xs text-indigo-500 hover:underline">Print OR</button></div></div></Card>
+            <Card key={p.id} className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="min-w-0 flex-1"><p className="font-semibold text-slate-800 truncate">{t?.name || "—"}</p><p className="text-xs text-slate-500">{fmtDate(p.date)} · {p.method}</p>{p.reference && <p className="text-xs text-slate-400">Ref: {p.reference}</p>}{p.notes && <p className="text-xs text-slate-400 italic">{p.notes}</p>}</div>
+                <div className="text-right ml-2 flex-shrink-0"><p className="text-base font-bold text-emerald-600">{fmtCurrency(p.amount)}</p><button onClick={() => printReceipt(p)} className="text-xs text-indigo-500 hover:underline block">Print OR</button></div>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => setEditPay({ ...p })} className="flex-1 text-xs text-indigo-600 font-semibold border border-indigo-200 rounded-lg py-1.5 hover:bg-indigo-50">Edit</button>
+                <button onClick={() => deletePayment(p)} className="flex-1 text-xs text-rose-500 font-semibold border border-rose-200 rounded-lg py-1.5 hover:bg-rose-50">Delete</button>
+              </div>
+            </Card>
           ); })}
         </div>
+
+        {editPay && (
+          <AppModal title="Edit Payment" onClose={() => setEditPay(null)}>
+            <Field label="Tenant"><div className="text-sm font-semibold text-slate-700 bg-slate-100 rounded-xl px-3 py-2.5">{tenants.find(t => t.id === editPay.tenantId)?.name || "—"}</div></Field>
+            <Field label="Date *"><Input type="date" value={editPay.date || ""} onChange={e => setEditPay(f => ({ ...f, date: e.target.value }))} /></Field>
+            <Field label="Amount *"><Input type="number" value={editPay.amount || ""} onChange={e => setEditPay(f => ({ ...f, amount: parseFloat(e.target.value) }))} /></Field>
+            <Field label="Method"><AppSelect value={editPay.method || "Cash"} onChange={e => setEditPay(f => ({ ...f, method: e.target.value }))}>{["Cash","Bank Transfer","GCash","Maya","Cheque","Other"].map(m => <option key={m}>{m}</option>)}</AppSelect></Field>
+            <Field label="Reference"><Input value={editPay.reference || ""} onChange={e => setEditPay(f => ({ ...f, reference: e.target.value }))} /></Field>
+            <Field label="Notes"><Textarea value={editPay.notes || ""} onChange={e => setEditPay(f => ({ ...f, notes: e.target.value }))} /></Field>
+            <button onClick={updatePayment} className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold mt-2 hover:bg-indigo-700">Save Changes</button>
+          </AppModal>
+        )}
       </div>
     );
   };
 
   const ChargesView = () => {
     const [search, setSearch] = useState("");
+    const [editCharge, setEditCharge] = useState(null);
     const filtered = [...charges].sort((a, b) => (b.date || "").localeCompare(a.date || "")).filter(c => { const t = tenants.find(t => t.id === c.tenantId); return (t?.name || "").toLowerCase().includes(search.toLowerCase()) || (c.type || "").toLowerCase().includes(search.toLowerCase()); });
+
+    const updateCharge = async () => {
+      if (!editCharge.amount) return alert("Amount is required");
+      setSyncing(true);
+      await api("charges", "PATCH", toDBCharge(editCharge, userId), `?id=eq.${editCharge.id}&user_id=eq.${userId}`);
+      setCharges(prev => prev.map(c => c.id === editCharge.id ? editCharge : c));
+      setEditCharge(null); setSyncing(false);
+    };
+
+    const deleteCharge = async (ch) => {
+      if (!confirm(`Delete this ${ch.type} charge of ${fmtCurrency(ch.amount)}? This cannot be undone.`)) return;
+      setSyncing(true);
+      await api("charges", "DELETE", null, `?id=eq.${ch.id}&user_id=eq.${userId}`);
+      setCharges(prev => prev.filter(x => x.id !== ch.id));
+      setSyncing(false);
+    };
+
     return (
       <div className="space-y-4">
         <OwnerWatermark />
@@ -641,10 +700,33 @@ function MainApp({ currentUser, onLogout }) {
         <div className="relative"><Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" className="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" /></div>
         <div className="space-y-2">
           {charges.length === 0 && <p className="text-center text-slate-400 text-sm py-8">No charges yet.</p>}
-          {filtered.map(c => { const t = tenants.find(t => t.id === c.tenantId); return (
-            <Card key={c.id} className="p-4"><div className="flex items-start justify-between"><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="font-semibold text-slate-800 truncate">{t?.name || "—"}</p><span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{c.type}</span></div><p className="text-xs text-slate-500">{fmtDate(c.date)} · {c.period}</p><p className="text-xs text-slate-400 italic">{c.remarks}</p></div><p className="text-base font-bold text-rose-600 ml-2">{fmtCurrency(c.amount)}</p></div></Card>
+          {filtered.map(ch => { const t = tenants.find(t => t.id === ch.tenantId); return (
+            <Card key={ch.id} className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="font-semibold text-slate-800 truncate">{t?.name || "—"}</p><span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{ch.type}</span></div><p className="text-xs text-slate-500">{fmtDate(ch.date)} · {ch.period}</p><p className="text-xs text-slate-400 italic">{ch.remarks}</p></div>
+                <p className="text-base font-bold text-rose-600 ml-2 flex-shrink-0">{fmtCurrency(ch.amount)}</p>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => setEditCharge({ ...ch })} className="flex-1 text-xs text-indigo-600 font-semibold border border-indigo-200 rounded-lg py-1.5 hover:bg-indigo-50">Edit</button>
+                <button onClick={() => deleteCharge(ch)} className="flex-1 text-xs text-rose-500 font-semibold border border-rose-200 rounded-lg py-1.5 hover:bg-rose-50">Delete</button>
+              </div>
+            </Card>
           ); })}
         </div>
+
+        {editCharge && (
+          <AppModal title="Edit Charge" onClose={() => setEditCharge(null)}>
+            <Field label="Tenant"><div className="text-sm font-semibold text-slate-700 bg-slate-100 rounded-xl px-3 py-2.5">{tenants.find(t => t.id === editCharge.tenantId)?.name || "—"}</div></Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Period"><Input type="month" value={editCharge.period || ""} onChange={e => setEditCharge(f => ({ ...f, period: e.target.value }))} /></Field>
+              <Field label="Date"><Input type="date" value={editCharge.date || ""} onChange={e => setEditCharge(f => ({ ...f, date: e.target.value }))} /></Field>
+            </div>
+            <Field label="Type"><AppSelect value={editCharge.type || "Rent"} onChange={e => setEditCharge(f => ({ ...f, type: e.target.value }))}>{["Rent","Dues","Parking","Utility","Penalty","Other"].map(t => <option key={t}>{t}</option>)}</AppSelect></Field>
+            <Field label="Amount *"><Input type="number" value={editCharge.amount || ""} onChange={e => setEditCharge(f => ({ ...f, amount: parseFloat(e.target.value) }))} /></Field>
+            <Field label="Remarks"><Input value={editCharge.remarks || ""} onChange={e => setEditCharge(f => ({ ...f, remarks: e.target.value }))} /></Field>
+            <button onClick={updateCharge} className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold mt-2 hover:bg-indigo-700">Save Changes</button>
+          </AppModal>
+        )}
       </div>
     );
   };
@@ -706,7 +788,7 @@ function MainApp({ currentUser, onLogout }) {
         <div className="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             <HotelLogo size={32} />
-            <div><span className="font-bold text-slate-800 text-sm leading-none">PropManager</span><p className="text-[10px] text-indigo-400 font-semibold leading-none">{OWNER_NAME}</p></div>
+            <div className="flex items-baseline gap-1.5"><span className="font-black text-slate-800 text-base leading-none tracking-tight">{APP_NAME}</span><span className="text-slate-300 text-xs font-medium leading-none">—{APP_SUB}</span></div>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-400" title="Connected" />
