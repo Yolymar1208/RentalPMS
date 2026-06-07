@@ -70,13 +70,51 @@ function printHTML(html, title = "Report") {
     .right{text-align:right}.bold{font-weight:700}
     .total-row td{background:#f8fafc;font-weight:700;border-top:2px solid #e2e8f0}
     .green{background:#d1fae5;color:#065f46}.red{background:#fee2e2;color:#991b1b}
-    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #e2e8f0}
-    .logo{font-size:20px;font-weight:800;color:#4f46e5}.owner{font-size:11px;color:#a5b4fc;margin-top:2px}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:3px solid #4338ca}
+    .logo-wrap{display:flex;align-items:center;gap:10px}
+    .logo-icon{width:44px;height:44px;flex-shrink:0}
+    .logo-text{font-size:26px;font-weight:900;color:#4338ca;letter-spacing:-1px;line-height:1}
+    .logo-sub{font-size:11px;color:#a5b4fc;font-weight:600;margin-top:1px}
+    .doc-title{font-size:12px;color:#64748b;margin-top:3px}
     @media print{body{padding:16px}}
   </style></head><body>${html}</body></html>`);
   w.document.close();
   setTimeout(() => w.print(), 400);
 }
+
+// Shared print header — hotel SVG + EULA name
+const PRINT_HEADER = (docTitle, dateStr) => \`
+  <div class="header">
+    <div class="logo-wrap">
+      <svg class="logo-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="40" height="40" rx="10" fill="#4338ca"/>
+        <rect x="13" y="10" width="14" height="22" fill="white" opacity="0.95"/>
+        <rect x="6" y="16" width="8" height="16" fill="white" opacity="0.75"/>
+        <rect x="26" y="16" width="8" height="16" fill="white" opacity="0.75"/>
+        <polygon points="20,4 27,10 13,10" fill="white" opacity="0.9"/>
+        <rect x="16" y="13" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
+        <rect x="21" y="13" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
+        <rect x="16" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
+        <rect x="21" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
+        <rect x="8" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
+        <rect x="8" y="25" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
+        <rect x="29" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
+        <rect x="29" y="25" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
+        <rect x="17.5" y="26" width="5" height="6" rx="2.5" fill="#4338ca" opacity="0.8"/>
+        <line x1="20" y1="4" x2="20" y2="1" stroke="white" stroke-width="1" opacity="0.8"/>
+        <polygon points="20,1 23,2.5 20,4" fill="#fbbf24"/>
+      </svg>
+      <div>
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <span class="logo-text">EULA</span>
+          <span class="logo-sub">— RentalPMS</span>
+        </div>
+        <div class="doc-title">\${docTitle}</div>
+      </div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#64748b">\${dateStr}</div>
+  </div>
+\`;
 
 // ─── HOTEL LOGO SVG ──────────────────────────────────────────────────────────
 const HotelLogo = ({ size = 32 }) => (
@@ -451,7 +489,7 @@ function MainApp({ currentUser, onLogout }) {
     const prop = properties.find(p => p.id === tenant.propertyId);
     const balance = getTenantBalance(tenant.id, charges, payments);
     const rows = ledger.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${e.desc}</td><td class="right">${e.debit ? fmtCurrency(e.debit) : "—"}</td><td class="right">${e.credit ? fmtCurrency(e.credit) : "—"}</td><td class="right bold">${fmtCurrency(e.balance)}</td></tr>`).join("");
-    printHTML(`<div class="header"><div><div class="logo">🏨 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Statement of Account</p></div><div style="text-align:right;font-size:11px;color:#64748b">Generated: ${fmtDate(today())}</div></div><table style="margin-bottom:16px;border:none"><tr><td style="border:none;padding:2px 0"><b>Tenant:</b> ${tenant.name}</td><td style="border:none;padding:2px 0"><b>Unit:</b> ${prop?.name || "—"}</td></tr><tr><td style="border:none;padding:2px 0"><b>Email:</b> ${tenant.email}</td><td style="border:none;padding:2px 0"><b>Lease End:</b> ${fmtDate(tenant.leaseEnd)}</td></tr></table><table><thead><tr><th>Date</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td colspan="3"></td><td class="right">Outstanding:</td><td class="right">${fmtCurrency(balance)}</td></tr></table>`, `SOA — ${tenant.name}`);
+    printHTML(`${PRINT_HEADER("Statement of Account", "Generated: " + fmtDate(today()))}<table style="margin-bottom:16px;border:none"><tr><td style="border:none;padding:2px 0"><b>Tenant:</b> ${tenant.name}</td><td style="border:none;padding:2px 0"><b>Unit:</b> ${prop?.name || "—"}</td></tr><tr><td style="border:none;padding:2px 0"><b>Email:</b> ${tenant.email}</td><td style="border:none;padding:2px 0"><b>Lease End:</b> ${fmtDate(tenant.leaseEnd)}</td></tr></table><table><thead><tr><th>Date</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td colspan="3"></td><td class="right">Outstanding:</td><td class="right">${fmtCurrency(balance)}</td></tr></table>`, `SOA — ${tenant.name}`);
   };
   // ── MONTHLY SOA ──
   const printMonthlySoa = (tenant, period) => {
@@ -498,15 +536,7 @@ function MainApp({ currentUser, onLogout }) {
       <tr style="background:#fefce8"><td colspan="2" style="font-weight:700;color:#92400e">Previous Unpaid Balance (before ${monthName})</td><td class="right bold" style="color:#92400e">${fmtCurrency(prevBalance)}</td></tr>
     ` : "";
 
-    const html = `
-      <div class="header">
-        <div>
-          <div class="logo">🏨 EULA RentalPMS</div>
-          <p style="color:#64748b;font-size:12px;margin-top:4px;font-weight:600">Monthly Statement of Account</p>
-          <p style="color:#64748b;font-size:12px">${monthName}</p>
-        </div>
-        <div style="text-align:right;font-size:11px;color:#64748b">Generated: ${fmtDate(today())}</div>
-      </div>
+    const html = `${PRINT_HEADER("Monthly Statement of Account — " + monthName, "Generated: " + fmtDate(today()))}
 
       <table style="margin-bottom:20px;border:none">
         <tr><td style="border:none;padding:3px 0;width:50%"><b>Tenant:</b> ${tenant.name}</td><td style="border:none;padding:3px 0"><b>Unit:</b> ${prop?.name || "—"}</td></tr>
@@ -564,7 +594,7 @@ function MainApp({ currentUser, onLogout }) {
     const tenant = tenants.find(t => t.id === payment.tenantId);
     const prop = properties.find(p => p.id === tenant?.propertyId);
     const balance = getTenantBalance(payment.tenantId, charges, payments);
-    printHTML(`<div class="header"><div><div class="logo">🏨 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Official Receipt</p></div><div style="text-align:right"><b>OR#:</b> ${payment.id}<br><span style="color:#64748b;font-size:11px">${fmtDate(payment.date)}</span></div></div><table style="border:none"><tr><td style="border:none;padding:4px 0;width:50%"><b>Received from:</b><br>${tenant?.name || "—"}</td><td style="border:none;padding:4px 0"><b>Unit:</b><br>${prop?.name || "—"}</td></tr><tr><td style="border:none;padding:4px 0"><b>Amount Paid:</b><br><span style="font-size:22px;font-weight:800;color:#4f46e5">${fmtCurrency(payment.amount)}</span></td><td style="border:none;padding:4px 0"><b>Method:</b><br>${payment.method}</td></tr><tr><td style="border:none;padding:4px 0"><b>Reference:</b><br>${payment.reference || "—"}</td><td style="border:none;padding:4px 0"><b>Remaining Balance:</b><br><span class="bold ${balance > 0 ? "red" : "green"}">${fmtCurrency(balance)}</span></td></tr></table>${payment.notes ? `<p style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px"><b>Notes:</b> ${payment.notes}</p>` : ""}<p style="margin-top:32px;font-size:10px;color:#94a3b8;text-align:center">This is an official receipt. Thank you for your payment.</p>`, `Receipt — ${payment.id}`);
+    printHTML(`${PRINT_HEADER("Official Receipt", "<b>OR#:</b> " + payment.id + "<br><span style=\"color:#64748b;font-size:11px\">" + fmtDate(payment.date) + "</span>")}<table style="border:none"><tr><td style="border:none;padding:4px 0;width:50%"><b>Received from:</b><br>${tenant?.name || "—"}</td><td style="border:none;padding:4px 0"><b>Unit:</b><br>${prop?.name || "—"}</td></tr><tr><td style="border:none;padding:4px 0"><b>Amount Paid:</b><br><span style="font-size:22px;font-weight:800;color:#4f46e5">${fmtCurrency(payment.amount)}</span></td><td style="border:none;padding:4px 0"><b>Method:</b><br>${payment.method}</td></tr><tr><td style="border:none;padding:4px 0"><b>Reference:</b><br>${payment.reference || "—"}</td><td style="border:none;padding:4px 0"><b>Remaining Balance:</b><br><span class="bold ${balance > 0 ? "red" : "green"}">${fmtCurrency(balance)}</span></td></tr></table>${payment.notes ? `<p style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px"><b>Notes:</b> ${payment.notes}</p>` : ""}<p style="margin-top:32px;font-size:10px;color:#94a3b8;text-align:center">This is an official receipt. Thank you for your payment.</p>`, `Receipt — ${payment.id}`);
   };
   const printIncomeReport = () => {
     const byMonth = {};
@@ -572,7 +602,7 @@ function MainApp({ currentUser, onLogout }) {
     const months = Object.keys(byMonth).sort().reverse();
     const rows = months.map(m => `<tr><td>${m}</td><td class="right">${fmtCurrency(byMonth[m])}</td></tr>`).join("");
     const total = payments.reduce((s, p) => s + Number(p.amount), 0);
-    printHTML(`<div class="header"><div><div class="logo">🏨 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Income Report</p></div><div style="font-size:11px;color:#64748b">As of ${fmtDate(today())}</div></div><table><thead><tr><th>Period</th><th class="right">Collected</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td>Total</td><td class="right">${fmtCurrency(total)}</td></tr></table>`, "Income Report");
+    printHTML(`${PRINT_HEADER("Monthly Income Report", "As of " + fmtDate(today()))}<table><thead><tr><th>Period</th><th class="right">Collected</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td>Total</td><td class="right">${fmtCurrency(total)}</td></tr></table>`, "Income Report");
   };
 
   const SyncBar = () => syncing ? <div className="fixed top-14 left-0 right-0 z-50 bg-indigo-600 text-white text-xs font-semibold text-center py-1.5">Saving…</div> : null;
@@ -852,7 +882,7 @@ function MainApp({ currentUser, onLogout }) {
     const byMethod = payments.reduce((acc, p) => { acc[p.method] = (acc[p.method] || 0) + Number(p.amount); return acc; }, {});
     const printOutstanding = () => {
       const rows = tenants.map(t => { const b = getTenantBalance(t.id, charges, payments); const prop = properties.find(p => p.id === t.propertyId); return `<tr><td>${t.name}</td><td>${prop?.name || "—"}</td><td class="right bold ${b > 0 ? "red" : "green"}">${fmtCurrency(b)}</td></tr>`; }).join("");
-      printHTML(`<div class="header"><div><div class="logo">🏨 PropManager</div><div class="owner">${OWNER_NAME}</div><p style="color:#64748b;font-size:12px;margin-top:4px">Outstanding Balances</p></div><div style="font-size:11px;color:#64748b">${fmtDate(today())}</div></div><table><thead><tr><th>Tenant</th><th>Unit</th><th class="right">Balance</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td colspan="2">Total Outstanding</td><td class="right">${fmtCurrency(outstanding)}</td></tr></table>`, "Outstanding Balances");
+      printHTML(`${PRINT_HEADER("Outstanding Balances Report", fmtDate(today()))}<table><thead><tr><th>Tenant</th><th>Unit</th><th class="right">Balance</th></tr></thead><tbody>${rows}</tbody><tr class="total-row"><td colspan="2">Total Outstanding</td><td class="right">${fmtCurrency(outstanding)}</td></tr></table>`, "Outstanding Balances");
     };
     return (
       <div className="space-y-4">
