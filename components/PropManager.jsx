@@ -6,19 +6,26 @@ const SUPABASE_URL = "https://lykhisfpiupivljmrvwm.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5a2hpc2ZwaXVwaXZsam1ydndtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDQ0MDgsImV4cCI6MjA5NjM4MDQwOH0.L4Xx-JxCgpCP2A6tB1VbYonBZnUdN9p7eNlf7vflhfU";
 
 const api = async (table, method = "GET", body = null, query = "") => {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
-    method,
-    headers: {
+  try {
+    const headers = {
       apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       "Content-Type": "application/json",
-      Prefer: method === "POST" ? "return=representation" : undefined,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (method === "DELETE" || method === "PATCH") return { ok: res.ok };
-  const data = await res.json();
-  return { data, ok: res.ok };
+    };
+    if (method === "POST") headers["Prefer"] = "return=representation";
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (method === "DELETE" || method === "PATCH") return { ok: res.ok };
+    if (!res.ok) { console.error("API error on " + table + ":", res.status); return { data: [], ok: false }; }
+    const data = await res.json();
+    return { data: Array.isArray(data) ? data : [], ok: true };
+  } catch (err) {
+    console.error("API fetch error on " + table + ":", err);
+    return { data: [], ok: false };
+  }
 };
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
@@ -158,36 +165,43 @@ const AuthScreen = ({ onLogin }) => {
   const handleSignIn = async () => {
     if (!form.email || !form.password) return setError("Please fill in all fields.");
     setLoading(true);
-    const { data } = await api("app_users", "GET", null, `?email=eq.${encodeURIComponent(form.email.toLowerCase())}&select=*`);
-    if (!data || data.length === 0) { setError("No account found with that email."); setLoading(false); return; }
-    const user = data[0];
-    if (user.password !== form.password) { setError("Incorrect password."); setLoading(false); return; }
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ id: user.id, name: user.name, email: user.email }));
-    onLogin({ id: user.id, name: user.name, email: user.email });
-    setLoading(false);
+    try {
+      const { data, ok } = await api("app_users", "GET", null, `?email=eq.${encodeURIComponent(form.email.toLowerCase())}&select=*`);
+      if (!ok || !data || data.length === 0) { setError("No account found with that email."); setLoading(false); return; }
+      const user = data[0];
+      if (user.password !== form.password) { setError("Incorrect password."); setLoading(false); return; }
+      const userData = { id: user.id, name: user.name, email: user.email };
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(userData));
+      onLogin(userData);
+    } catch (err) {
+      setError("Connection error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSignUp = async () => {
     if (!form.name || !form.email || !form.password || !form.code) return setError("Please fill in all fields.");
     if (form.password.length < 6) return setError("Password must be at least 6 characters.");
     setLoading(true);
-    // Check invite code exists and is unused
-    const { data: codes } = await api("invite_codes", "GET", null, `?code=eq.${encodeURIComponent(form.code.toUpperCase())}&select=*`);
-    if (!codes || codes.length === 0) { setError("Invalid invite code."); setLoading(false); return; }
-    if (codes[0].used_by) { setError("This invite code has already been used."); setLoading(false); return; }
-    // Check email not already registered
-    const { data: existing } = await api("app_users", "GET", null, `?email=eq.${encodeURIComponent(form.email.toLowerCase())}&select=id`);
-    if (existing && existing.length > 0) { setError("An account with this email already exists."); setLoading(false); return; }
-    // Create user
-    const userId = uid("USR");
-    const { data: newUser, ok } = await api("app_users", "POST", [{ id: userId, name: form.name, email: form.email.toLowerCase(), password: form.password, invite_code: form.code.toUpperCase() }]);
-    if (!ok) { setError("Something went wrong. Please try again."); setLoading(false); return; }
-    // Mark code as used
-    await api("invite_codes", "PATCH", { used_by: form.email.toLowerCase(), used_at: new Date().toISOString() }, `?code=eq.${encodeURIComponent(form.code.toUpperCase())}`);
-    const user = { id: userId, name: form.name, email: form.email.toLowerCase() };
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
-    onLogin(user);
-    setLoading(false);
+    try {
+      const { data: codes, ok: cok } = await api("invite_codes", "GET", null, `?code=eq.${encodeURIComponent(form.code.toUpperCase())}&select=*`);
+      if (!cok || !codes || codes.length === 0) { setError("Invalid invite code."); setLoading(false); return; }
+      if (codes[0].used_by) { setError("This invite code has already been used."); setLoading(false); return; }
+      const { data: existing } = await api("app_users", "GET", null, `?email=eq.${encodeURIComponent(form.email.toLowerCase())}&select=id`);
+      if (existing && existing.length > 0) { setError("An account with this email already exists."); setLoading(false); return; }
+      const userId = uid("USR");
+      const { ok } = await api("app_users", "POST", [{ id: userId, name: form.name, email: form.email.toLowerCase(), password: form.password, invite_code: form.code.toUpperCase() }]);
+      if (!ok) { setError("Something went wrong. Please try again."); setLoading(false); return; }
+      await api("invite_codes", "PATCH", { used_by: form.email.toLowerCase(), used_at: new Date().toISOString() }, `?code=eq.${encodeURIComponent(form.code.toUpperCase())}`);
+      const userData = { id: userId, name: form.name, email: form.email.toLowerCase() };
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(userData));
+      onLogin(userData);
+    } catch (err) {
+      setError("Connection error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -325,17 +339,22 @@ function MainApp({ currentUser, onLogout }) {
 
   const loadAll = async () => {
     setLoading(true);
-    const [pr, tr, cr, pmr] = await Promise.all([
-      api("properties", "GET", null, "?select=*&order=id"),
-      api("tenants",    "GET", null, "?select=*&order=id"),
-      api("charges",    "GET", null, "?select=*&order=date.desc"),
-      api("payments",   "GET", null, "?select=*&order=date.desc"),
-    ]);
-    if (pr.data)  setProperties(pr.data.map(mapProperty));
-    if (tr.data)  setTenants(tr.data.map(mapTenant));
-    if (cr.data)  setCharges(cr.data.map(mapCharge));
-    if (pmr.data) setPayments(pmr.data.map(mapPayment));
-    setLoading(false);
+    try {
+      const [pr, tr, cr, pmr] = await Promise.all([
+        api("properties", "GET", null, "?select=*&order=id"),
+        api("tenants",    "GET", null, "?select=*&order=id"),
+        api("charges",    "GET", null, "?select=*&order=date.desc"),
+        api("payments",   "GET", null, "?select=*&order=date.desc"),
+      ]);
+      if (pr.data)  setProperties(pr.data.map(mapProperty));
+      if (tr.data)  setTenants(tr.data.map(mapTenant));
+      if (cr.data)  setCharges(cr.data.map(mapCharge));
+      if (pmr.data) setPayments(pmr.data.map(mapPayment));
+    } catch (err) {
+      console.error("loadAll error:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadAll(); }, []);
