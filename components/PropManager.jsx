@@ -368,6 +368,132 @@ export default function App() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// LEDGER BY UNIT MODAL — standalone component so hooks work correctly
+// ═══════════════════════════════════════════════════════════════════════════════
+function LedgerByUnitModal({ onClose, properties, tenants, charges, payments }) {
+  const [lUnit,     setLUnit]     = useState("all");
+  const [lDateFrom, setLDateFrom] = useState(() => today().slice(0, 7) + "-01");
+  const [lDateTo,   setLDateTo]   = useState(() => today());
+
+  const filteredTenants = lUnit === "all" ? tenants : tenants.filter(t => t.propertyId === lUnit);
+  const previewCharged  = filteredTenants.reduce((s, t) =>
+    s + charges.filter(c => c.tenantId === t.id && c.date >= lDateFrom && c.date <= lDateTo).reduce((a, c) => a + Number(c.amount), 0), 0);
+  const previewPaid     = filteredTenants.reduce((s, t) =>
+    s + payments.filter(p => p.tenantId === t.id && p.date >= lDateFrom && p.date <= lDateTo).reduce((a, p) => a + Number(p.amount), 0), 0);
+
+  const buildRangeLedgerHtml = () => {
+    if (filteredTenants.length === 0) return null;
+    const propLabel = lUnit === "all" ? "All Units" : (properties.find(p => p.id === lUnit)?.name || "");
+    const dateLabel = fmtDate(lDateFrom) + " — " + fmtDate(lDateTo);
+    let body = "";
+    let grandCharged = 0, grandPaid = 0;
+
+    filteredTenants.forEach(t => {
+      const prop        = properties.find(p => p.id === t.propertyId);
+      const tCharges    = charges.filter(c  => c.tenantId === t.id && (c.date||"")  >= lDateFrom && (c.date||"")  <= lDateTo).sort((a, b) => (a.date||"").localeCompare(b.date||""));
+      const tPayments   = payments.filter(p => p.tenantId === t.id && (p.date||"") >= lDateFrom && (p.date||"") <= lDateTo).sort((a, b) => (a.date||"").localeCompare(b.date||""));
+      const prevCharges  = charges.filter(c  => c.tenantId === t.id && (c.date||"")  < lDateFrom);
+      const prevPayments = payments.filter(p => p.tenantId === t.id && (p.date||"") < lDateFrom);
+      const prevBal  = prevCharges.reduce((s, c) => s + Number(c.amount), 0) - prevPayments.reduce((s, p) => s + Number(p.amount), 0);
+      const charged  = tCharges.reduce((s, c)  => s + Number(c.amount), 0);
+      const paid     = tPayments.reduce((s, p) => s + Number(p.amount), 0);
+      grandCharged  += charged;
+      grandPaid     += paid;
+
+      const entries = [
+        ...(prevBal !== 0 ? [{ date: lDateFrom, desc: "Balance brought forward", debit: prevBal > 0 ? prevBal : 0, credit: prevBal < 0 ? Math.abs(prevBal) : 0, isBF: true }] : []),
+        ...tCharges.map(c  => ({ date: c.date, desc: c.remarks || c.type, debit: Number(c.amount), credit: 0 })),
+        ...tPayments.map(p => ({ date: p.date, desc: "Payment — " + p.method + (p.reference ? " " + p.reference : ""), debit: 0, credit: Number(p.amount) })),
+      ].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+
+      let runBal = prevBal;
+      const rows = entries.map(e => {
+        runBal += e.debit - e.credit;
+        const fmt = n => "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2 });
+        const dStr = e.date ? new Date(e.date + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "";
+        return "<tr" + (e.isBF ? ' style="background:#f8fafc;font-style:italic"' : "") + ">"
+          + "<td>" + dStr + "</td>"
+          + "<td>" + e.desc + "</td>"
+          + "<td class='right' style='color:#dc2626'>" + (e.debit  ? fmt(e.debit)  : "—") + "</td>"
+          + "<td class='right' style='color:#16a34a'>" + (e.credit ? fmt(e.credit) : "—") + "</td>"
+          + "<td class='right bold' style='color:" + (runBal > 0 ? "#dc2626" : "#16a34a") + "'>" + fmt(runBal) + "</td>"
+          + "</tr>";
+      }).join("");
+
+      const fmt = n => "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2 });
+      const endBal = prevBal + charged - paid;
+      body += "<h3 style='margin:20px 0 6px;font-size:13px;color:#1e293b'>"
+        + t.name + " &mdash; " + (prop ? prop.name : "&mdash;") + "</h3>"
+        + "<table><thead><tr><th>Date</th><th>Description</th><th class='right'>Charges</th><th class='right'>Payments</th><th class='right'>Balance</th></tr></thead>"
+        + "<tbody>" + (rows || "<tr><td colspan='5' style='color:#94a3b8;text-align:center'>No transactions in this range</td></tr>") + "</tbody>"
+        + "<tr class='total-row'><td colspan='2'>Totals for period</td>"
+        + "<td class='right'>" + fmt(charged) + "</td>"
+        + "<td class='right'>" + fmt(paid) + "</td>"
+        + "<td class='right' style='color:" + (endBal > 0 ? "#dc2626" : "#16a34a") + "'>" + fmt(endBal) + "</td>"
+        + "</tr></table>";
+    });
+
+    const fmt = n => "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2 });
+    const summary = "<div style='margin-top:24px;padding:14px;background:#f8fafc;border-radius:8px;display:flex;gap:32px'>"
+      + "<div><div style='font-size:11px;color:#64748b'>Total Charged</div><div style='font-size:16px;font-weight:800;color:#dc2626'>" + fmt(grandCharged) + "</div></div>"
+      + "<div><div style='font-size:11px;color:#64748b'>Total Collected</div><div style='font-size:16px;font-weight:800;color:#16a34a'>" + fmt(grandPaid) + "</div></div>"
+      + "<div><div style='font-size:11px;color:#64748b'>Net Outstanding</div><div style='font-size:16px;font-weight:800;color:#4338ca'>" + fmt(grandCharged - grandPaid) + "</div></div>"
+      + "</div>";
+
+    const title    = propLabel + " Ledger " + dateLabel;
+    const html     = PRINT_HEADER(title, "Generated: " + new Date().toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" })) + body + summary;
+    const filename = "Ledger-" + (lUnit === "all" ? "All" : lUnit) + "-" + lDateFrom + "-to-" + lDateTo;
+    return { html, title, filename };
+  };
+
+  const handlePrint = () => {
+    const r = buildRangeLedgerHtml();
+    if (r) { printHTML(r.html, r.title); onClose(); }
+    else alert("No tenants found for the selected filters.");
+  };
+
+  const handleDownload = () => {
+    const r = buildRangeLedgerHtml();
+    if (r) { downloadHTML(r.html, r.filename); onClose(); }
+    else alert("No tenants found for the selected filters.");
+  };
+
+  return (
+    <AppModal title="Ledger by Unit" onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Select Unit">
+          <AppSelect value={lUnit} onChange={e => setLUnit(e.target.value)}>
+            <option value="all">All Units</option>
+            {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </AppSelect>
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Date From">
+            <Input type="date" value={lDateFrom} onChange={e => setLDateFrom(e.target.value)} />
+          </Field>
+          <Field label="Date To">
+            <Input type="date" value={lDateTo} onChange={e => setLDateTo(e.target.value)} />
+          </Field>
+        </div>
+        <div className="bg-slate-50 rounded-xl p-3 grid grid-cols-3 gap-2 text-center">
+          <div><p className="text-xs text-slate-400">Tenants</p><p className="text-sm font-bold text-slate-700">{filteredTenants.length}</p></div>
+          <div><p className="text-xs text-slate-400">Charged</p><p className="text-sm font-bold text-rose-600">{fmtCurrency(previewCharged)}</p></div>
+          <div><p className="text-xs text-slate-400">Collected</p><p className="text-sm font-bold text-emerald-600">{fmtCurrency(previewPaid)}</p></div>
+        </div>
+        <div className="flex gap-2 pt-1">
+          <button onClick={handlePrint} className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold hover:bg-indigo-700">
+            <Icon name="receipt" size={15} /> Print
+          </button>
+          <button onClick={handleDownload} className="flex-1 flex items-center justify-center gap-2 border-2 border-emerald-200 text-emerald-700 rounded-xl py-3 text-sm font-bold hover:bg-emerald-50">
+            <Icon name="download" size={15} /> Download
+          </button>
+        </div>
+      </div>
+    </AppModal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════════
 function MainApp({ currentUser, onLogout }) {
@@ -1223,115 +1349,15 @@ function MainApp({ currentUser, onLogout }) {
           <button onClick={saveCharge} className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold mt-2 hover:bg-indigo-700">Add Charge</button>
         </AppModal>
       )}
-      {/* Ledger by Unit modal — with date range + unit selector */}
-      {modal?.type === "ledgerByUnit" && (() => {
-        const [lUnit,    setLUnit]    = useState("all");
-        const [lDateFrom, setLDateFrom] = useState(today().slice(0,7) + "-01");
-        const [lDateTo,   setLDateTo]   = useState(today());
-
-        const buildRangeLedgerHtml = () => {
-          const filteredTenants = lUnit === "all" ? tenants : tenants.filter(t => t.propertyId === lUnit);
-          if (filteredTenants.length === 0) return null;
-          const propLabel = lUnit === "all" ? "All Units" : (properties.find(p => p.id === lUnit)?.name || "");
-          const dateLabel = fmtDate(lDateFrom) + " — " + fmtDate(lDateTo);
-          let body = "";
-          let grandCharged = 0, grandPaid = 0;
-
-          filteredTenants.forEach(t => {
-            const prop = properties.find(p => p.id === t.propertyId);
-            const tCharges  = charges.filter(c  => c.tenantId === t.id && c.date  >= lDateFrom && c.date  <= lDateTo).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
-            const tPayments = payments.filter(p => p.tenantId === t.id && p.date >= lDateFrom && p.date <= lDateTo).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
-            const prevCharges  = charges.filter(c  => c.tenantId === t.id && c.date  < lDateFrom);
-            const prevPayments = payments.filter(p => p.tenantId === t.id && p.date < lDateFrom);
-            const prevBal = prevCharges.reduce((s,c)=>s+Number(c.amount),0) - prevPayments.reduce((s,p)=>s+Number(p.amount),0);
-            const charged = tCharges.reduce((s,c)=>s+Number(c.amount),0);
-            const paid    = tPayments.reduce((s,p)=>s+Number(p.amount),0);
-            grandCharged += charged; grandPaid += paid;
-
-            const entries = [
-              ...(prevBal !== 0 ? [{ date: lDateFrom, desc: "Balance brought forward", debit: prevBal>0?prevBal:0, credit: prevBal<0?Math.abs(prevBal):0, isBF:true }] : []),
-              ...tCharges.map(c  => ({ date: c.date, desc: c.remarks||c.type,  debit: Number(c.amount), credit: 0 })),
-              ...tPayments.map(p => ({ date: p.date, desc: "Payment — " + p.method + (p.reference?" "+p.reference:""), debit: 0, credit: Number(p.amount) })),
-            ].sort((a,b)=>(a.date||"").localeCompare(b.date||""));
-
-            let runBal = prevBal;
-            const rows = entries.map(e => {
-              runBal += e.debit - e.credit;
-              return "<tr" + (e.isBF?' style="background:#f8fafc;font-style:italic"':"") + ">"
-                + "<td>" + (e.date ? new Date(e.date+"T00:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"}) : "") + "</td>"
-                + "<td>" + e.desc + "</td>"
-                + "<td class='right' style='color:#dc2626'>" + (e.debit  ? "₱"+Number(e.debit).toLocaleString("en-PH",{minimumFractionDigits:2})  : "—") + "</td>"
-                + "<td class='right' style='color:#16a34a'>" + (e.credit ? "₱"+Number(e.credit).toLocaleString("en-PH",{minimumFractionDigits:2}) : "—") + "</td>"
-                + "<td class='right bold' style='color:"+(runBal>0?"#dc2626":"#16a34a")+"'>₱"+Number(runBal).toLocaleString("en-PH",{minimumFractionDigits:2})+"</td>"
-                + "</tr>";
-            }).join("");
-
-            body += "<h3 style='margin:20px 0 6px;font-size:13px;color:#1e293b'>"
-              + t.name + " &mdash; " + (prop?prop.name:"&mdash;") + "</h3>"
-              + "<table><thead><tr><th>Date</th><th>Description</th><th class='right'>Charges</th><th class='right'>Payments</th><th class='right'>Balance</th></tr></thead>"
-              + "<tbody>" + (rows||"<tr><td colspan='5' style='color:#94a3b8;text-align:center'>No transactions in this range</td></tr>") + "</tbody>"
-              + "<tr class='total-row'><td colspan='2'>Totals for period</td>"
-              + "<td class='right'>₱"+Number(charged).toLocaleString("en-PH",{minimumFractionDigits:2})+"</td>"
-              + "<td class='right'>₱"+Number(paid).toLocaleString("en-PH",{minimumFractionDigits:2})+"</td>"
-              + "<td class='right' style='color:"+(prevBal+charged-paid>0?"#dc2626":"#16a34a")+"'>₱"+Number(prevBal+charged-paid).toLocaleString("en-PH",{minimumFractionDigits:2})+"</td>"
-              + "</tr></table>";
-          });
-
-          const summary = "<div style='margin-top:24px;padding:14px;background:#f8fafc;border-radius:8px;display:flex;gap:32px'>"
-            + "<div><div style='font-size:11px;color:#64748b'>Total Charged</div><div style='font-size:16px;font-weight:800;color:#dc2626'>₱"+Number(grandCharged).toLocaleString("en-PH",{minimumFractionDigits:2})+"</div></div>"
-            + "<div><div style='font-size:11px;color:#64748b'>Total Collected</div><div style='font-size:16px;font-weight:800;color:#16a34a'>₱"+Number(grandPaid).toLocaleString("en-PH",{minimumFractionDigits:2})+"</div></div>"
-            + "<div><div style='font-size:11px;color:#64748b'>Net Outstanding</div><div style='font-size:16px;font-weight:800;color:#4338ca'>₱"+Number(grandCharged-grandPaid).toLocaleString("en-PH",{minimumFractionDigits:2})+"</div></div>"
-            + "</div>";
-
-          const title = propLabel + " Ledger " + dateLabel;
-          const html  = PRINT_HEADER(title, "Generated: " + new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"})) + body + summary;
-          return { html, title, filename: "Ledger-" + (lUnit==="all"?"All":lUnit) + "-" + lDateFrom + "-to-" + lDateTo };
-        };
-
-        // Live preview totals
-        const filteredTenants = lUnit === "all" ? tenants : tenants.filter(t => t.propertyId === lUnit);
-        const previewCharged  = filteredTenants.reduce((s,t) => s + charges.filter(c=>c.tenantId===t.id&&c.date>=lDateFrom&&c.date<=lDateTo).reduce((a,c)=>a+Number(c.amount),0), 0);
-        const previewPaid     = filteredTenants.reduce((s,t) => s + payments.filter(p=>p.tenantId===t.id&&p.date>=lDateFrom&&p.date<=lDateTo).reduce((a,p)=>a+Number(p.amount),0), 0);
-
-        return (
-          <AppModal title="Ledger by Unit" onClose={closeModal}>
-            <div className="space-y-3">
-              <Field label="Select Unit">
-                <AppSelect value={lUnit} onChange={e => setLUnit(e.target.value)}>
-                  <option value="all">All Units</option>
-                  {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </AppSelect>
-              </Field>
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Date From">
-                  <Input type="date" value={lDateFrom} onChange={e => setLDateFrom(e.target.value)} />
-                </Field>
-                <Field label="Date To">
-                  <Input type="date" value={lDateTo} onChange={e => setLDateTo(e.target.value)} />
-                </Field>
-              </div>
-
-              {/* Live Preview */}
-              <div className="bg-slate-50 rounded-xl p-3 grid grid-cols-3 gap-2 text-center">
-                <div><p className="text-xs text-slate-400">Tenants</p><p className="text-sm font-bold text-slate-700">{filteredTenants.length}</p></div>
-                <div><p className="text-xs text-slate-400">Charged</p><p className="text-sm font-bold text-rose-600">{fmtCurrency(previewCharged)}</p></div>
-                <div><p className="text-xs text-slate-400">Collected</p><p className="text-sm font-bold text-emerald-600">{fmtCurrency(previewPaid)}</p></div>
-              </div>
-
-              <div className="flex gap-2 pt-1">
-                <button onClick={() => { const r = buildRangeLedgerHtml(); if(r) { printHTML(r.html, r.title); closeModal(); } else alert("No tenants found."); }}
-                  className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold hover:bg-indigo-700">
-                  <Icon name="receipt" size={15} /> Print
-                </button>
-                <button onClick={() => { const r = buildRangeLedgerHtml(); if(r) { downloadHTML(r.html, r.filename); closeModal(); } else alert("No tenants found."); }}
-                  className="flex-1 flex items-center justify-center gap-2 border-2 border-emerald-200 text-emerald-700 rounded-xl py-3 text-sm font-bold hover:bg-emerald-50">
-                  <Icon name="download" size={15} /> Download
-                </button>
-              </div>
-            </div>
-          </AppModal>
-        );
-      })()}
+      {modal?.type === "ledgerByUnit" && (
+        <LedgerByUnitModal
+          onClose={closeModal}
+          properties={properties}
+          tenants={tenants}
+          charges={charges}
+          payments={payments}
+        />
+      )}
 
       {modal?.type === "reset" && (
         <AppModal title="Reset All Data" onClose={closeModal}>
