@@ -60,9 +60,7 @@ function getLedger(tenantId, charges, payments) {
   return entries.map(e => { bal += e.debit - e.credit; return { ...e, balance: bal }; });
 }
 
-function printHTML(html, title = "Report") {
-  const w = window.open("", "_blank");
-  w.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>
+const DOC_STYLES = `
     body{font-family:'Helvetica Neue',Arial,sans-serif;padding:32px;color:#1e293b;font-size:13px}
     table{width:100%;border-collapse:collapse;margin-top:16px}
     th{background:#f8fafc;padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;border-bottom:2px solid #e2e8f0}
@@ -76,10 +74,32 @@ function printHTML(html, title = "Report") {
     .logo-text{font-size:26px;font-weight:900;color:#4338ca;letter-spacing:-1px;line-height:1}
     .logo-sub{font-size:11px;color:#a5b4fc;font-weight:600;margin-top:1px}
     .doc-title{font-size:12px;color:#64748b;margin-top:3px}
-    @media print{body{padding:16px}}
-  </style></head><body>${html}</body></html>`);
+    .no-print{display:none}
+    @media print{body{padding:16px}.no-print{display:none!important}}
+`;
+
+function buildDocHTML(html, title) {
+  return "<!DOCTYPE html><html><head><title>" + title + "</title><style>" + DOC_STYLES + "</style></head><body>" + html + "</body></html>";
+}
+
+function printHTML(html, title) {
+  const w = window.open("", "_blank");
+  w.document.write(buildDocHTML(html, title || "Report"));
   w.document.close();
   setTimeout(() => w.print(), 400);
+}
+
+function downloadHTML(html, filename) {
+  const fullHtml = buildDocHTML(html, filename || "Report");
+  const blob = new Blob([fullHtml], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = (filename || "report") + ".html";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // Shared print header — hotel SVG + EULA name (plain string concat, safe inside template literals)
@@ -482,116 +502,94 @@ function MainApp({ currentUser, onLogout }) {
   };
 
   // ── PRINT ──
-  const printSOA = (tenant) => {
-    const ledger = getLedger(tenant.id, charges, payments);
-    const prop = properties.find(p => p.id === tenant.propertyId);
-    const balance = getTenantBalance(tenant.id, charges, payments);
-    const rows = ledger.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${e.desc}</td><td class="right">${e.debit ? fmtCurrency(e.debit) : "—"}</td><td class="right">${e.credit ? fmtCurrency(e.credit) : "—"}</td><td class="right bold">${fmtCurrency(e.balance)}</td></tr>`).join("");
-    const soaHtml = PRINT_HEADER("Statement of Account", "Generated: " + fmtDate(today()))
-      + '<table style="margin-bottom:16px;border:none">'
-      + '<tr><td style="border:none;padding:2px 0"><b>Tenant:</b> ' + tenant.name + '</td><td style="border:none;padding:2px 0"><b>Unit:</b> ' + (prop ? prop.name : "—") + '</td></tr>'
-      + '<tr><td style="border:none;padding:2px 0"><b>Email:</b> ' + (tenant.email || "—") + '</td><td style="border:none;padding:2px 0"><b>Lease End:</b> ' + fmtDate(tenant.leaseEnd) + '</td></tr>'
-      + '</table>'
-      + '<table><thead><tr><th>Date</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th></tr></thead>'
-      + '<tbody>' + rows + '</tbody>'
-      + '<tr class="total-row"><td colspan="3"></td><td class="right">Outstanding:</td><td class="right">' + fmtCurrency(balance) + '</td></tr></table>';
-    printHTML(soaHtml, "SOA — " + tenant.name);
-  };
+    const printSOA = (tenant) => { printHTML(buildSOAHtml(tenant), "SOA — " + tenant.name); };
   // ── MONTHLY SOA ──
-  const printMonthlySoa = (tenant, period) => {
+  const buildMonthlySoaHtml = (tenant, period) => {
     const prop = properties.find(p => p.id === tenant.propertyId);
-
-    // Current month charges
-    const currentCharges = charges
-      .filter(c => c.tenantId === tenant.id && c.period === period)
-      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-
-    const currentTotal = currentCharges.reduce((s, c) => s + Number(c.amount), 0);
-
-    // Payments made IN the current period month
-    const currentPayments = payments
-      .filter(p => p.tenantId === tenant.id && (p.date || "").slice(0, 7) === period)
-      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-
-    const currentPaid = currentPayments.reduce((s, p) => s + Number(p.amount), 0);
-
-    // Previous balance = all charges & payments BEFORE this period
-    const prevCharges  = charges.filter(c => c.tenantId === tenant.id && (c.period || "") < period);
-    const prevPayments = payments.filter(p => p.tenantId === tenant.id && (p.date || "").slice(0, 7) < period);
-    const prevBalance  = prevCharges.reduce((s, c) => s + Number(c.amount), 0)
-                       - prevPayments.reduce((s, p) => s + Number(p.amount), 0);
-
-    const totalDue   = currentTotal + prevBalance;
-    const totalPaid  = currentPaid;
-    const remaining  = totalDue - totalPaid;
-
-    const [year, mon] = period.split("-");
-    const monthName = new Date(Number(year), Number(mon) - 1, 1).toLocaleString("en-PH", { month: "long", year: "numeric" });
-
-    // Current charges rows
-    const chargeRows = currentCharges.map(ch =>
-      `<tr><td>${fmtDate(ch.date)}</td><td>${ch.remarks || ch.type}</td><td class="right">${fmtCurrency(ch.amount)}</td></tr>`
-    ).join("");
-
-    // Current payments rows
-    const payRows = currentPayments.map(p =>
-      `<tr><td>${fmtDate(p.date)}</td><td>Payment — ${p.method}${p.reference ? " " + p.reference : ""}</td><td class="right" style="color:#065f46">(${fmtCurrency(p.amount)})</td></tr>`
-    ).join("");
-
-    const prevBalanceSection = prevBalance !== 0 ? `
-      <tr style="background:#fefce8"><td colspan="2" style="font-weight:700;color:#92400e">Previous Unpaid Balance (before ${monthName})</td><td class="right bold" style="color:#92400e">${fmtCurrency(prevBalance)}</td></tr>
-    ` : "";
-
-    // Build prev balance section without nested backticks
+    const currentCharges = charges.filter(c => c.tenantId === tenant.id && c.period === period).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    const currentTotal   = currentCharges.reduce((s, c) => s + Number(c.amount), 0);
+    const currentPayments = payments.filter(p => p.tenantId === tenant.id && (p.date || "").slice(0, 7) === period).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    const currentPaid    = currentPayments.reduce((s, p) => s + Number(p.amount), 0);
+    const prevCharges    = charges.filter(c => c.tenantId === tenant.id && (c.period || "") < period);
+    const prevPayments   = payments.filter(p => p.tenantId === tenant.id && (p.date || "").slice(0, 7) < period);
+    const prevBalance    = prevCharges.reduce((s, c) => s + Number(c.amount), 0) - prevPayments.reduce((s, p) => s + Number(p.amount), 0);
+    const remaining      = currentTotal + prevBalance - currentPaid;
+    const [year, mon]    = period.split("-");
+    const monthName      = new Date(Number(year), Number(mon) - 1, 1).toLocaleString("en-PH", { month: "long", year: "numeric" });
+    const chargeRows = currentCharges.map(ch => "<tr><td>" + fmtDate(ch.date) + "</td><td>" + (ch.remarks || ch.type) + "</td><td class='right'>" + fmtCurrency(ch.amount) + "</td></tr>").join("");
+    const payRows    = currentPayments.map(p  => "<tr><td>" + fmtDate(p.date)  + "</td><td>Payment — " + p.method + (p.reference ? " " + p.reference : "") + "</td><td class='right' style='color:#065f46'>(" + fmtCurrency(p.amount) + ")</td></tr>").join("");
     let prevSection = "";
     if (prevBalance > 0) {
-      prevSection = '<p style="font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#92400e">Previous Unpaid Balance</p>'
-        + '<table><thead><tr><th>Description</th><th class="right">Amount</th></tr></thead><tbody>'
-        + '<tr style="background:#fefce8"><td style="color:#92400e">Unpaid balance from previous months (since ' + fmtDate(tenant.leaseStart) + ')</td>'
-        + '<td class="right bold" style="color:#92400e">' + fmtCurrency(prevBalance) + '</td></tr>'
-        + '</tbody></table>';
+      prevSection = "<p style='font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#92400e'>Previous Unpaid Balance</p>"
+        + "<table><thead><tr><th>Description</th><th class='right'>Amount</th></tr></thead><tbody>"
+        + "<tr style='background:#fefce8'><td style='color:#92400e'>Unpaid balance from previous months (since " + fmtDate(tenant.leaseStart) + ")</td>"
+        + "<td class='right bold' style='color:#92400e'>" + fmtCurrency(prevBalance) + "</td></tr></tbody></table>";
     } else if (prevBalance < 0) {
-      prevSection = '<p style="font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#065f46">Previous Credit Balance</p>'
-        + '<table><thead><tr><th>Description</th><th class="right">Amount</th></tr></thead><tbody>'
-        + '<tr style="background:#f0fdf4"><td style="color:#065f46">Credit from previous overpayments</td>'
-        + '<td class="right bold" style="color:#065f46">(' + fmtCurrency(Math.abs(prevBalance)) + ')</td></tr>'
-        + '</tbody></table>';
+      prevSection = "<p style='font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#065f46'>Previous Credit Balance</p>"
+        + "<table><thead><tr><th>Description</th><th class='right'>Amount</th></tr></thead><tbody>"
+        + "<tr style='background:#f0fdf4'><td style='color:#065f46'>Credit from previous overpayments</td>"
+        + "<td class='right bold' style='color:#065f46'>(" + fmtCurrency(Math.abs(prevBalance)) + ")</td></tr></tbody></table>";
     }
     const prevSummaryRow = prevBalance > 0
-      ? '<tr><td style="padding:10px 14px;color:#92400e;font-weight:600">Previous Unpaid Balance</td><td class="right bold" style="padding:10px 14px;color:#92400e">+ ' + fmtCurrency(prevBalance) + '</td></tr>'
+      ? "<tr><td style='padding:10px 14px;color:#92400e;font-weight:600'>Previous Unpaid Balance</td><td class='right bold' style='padding:10px 14px;color:#92400e'>+ " + fmtCurrency(prevBalance) + "</td></tr>"
       : prevBalance < 0
-      ? '<tr><td style="padding:10px 14px;color:#065f46;font-weight:600">Previous Credit</td><td class="right bold" style="padding:10px 14px;color:#065f46">(' + fmtCurrency(Math.abs(prevBalance)) + ')</td></tr>'
+      ? "<tr><td style='padding:10px 14px;color:#065f46;font-weight:600'>Previous Credit</td><td class='right bold' style='padding:10px 14px;color:#065f46'>(" + fmtCurrency(Math.abs(prevBalance)) + ")</td></tr>"
       : "";
     const amountDueBg    = remaining > 0 ? "#fff7ed" : "#f0fdf4";
     const amountDueColor = remaining > 0 ? "#c2410c" : "#065f46";
-    const chargeRowsFinal = chargeRows || '<tr><td colspan="3" style="color:#94a3b8;text-align:center">No charges for this period</td></tr>';
-    const payRowsFinal    = payRows    || '<tr><td colspan="3" style="color:#94a3b8;text-align:center">No payments received this month</td></tr>';
-
+    const chargeRowsFinal = chargeRows || "<tr><td colspan='3' style='color:#94a3b8;text-align:center'>No charges for this period</td></tr>";
+    const payRowsFinal    = payRows    || "<tr><td colspan='3' style='color:#94a3b8;text-align:center'>No payments received this month</td></tr>";
     const html = PRINT_HEADER("Monthly Statement of Account &mdash; " + monthName, "Generated: " + fmtDate(today()))
-      + '<table style="margin-bottom:20px;border:none">'
-      + '<tr><td style="border:none;padding:3px 0;width:50%"><b>Tenant:</b> ' + tenant.name + '</td><td style="border:none;padding:3px 0"><b>Unit:</b> ' + (prop ? prop.name : "—") + '</td></tr>'
-      + '<tr><td style="border:none;padding:3px 0"><b>Phone:</b> ' + (tenant.phone || "—") + '</td><td style="border:none;padding:3px 0"><b>Lease End:</b> ' + fmtDate(tenant.leaseEnd) + '</td></tr>'
-      + '</table>'
-      + '<p style="font-weight:700;font-size:13px;margin-bottom:6px;color:#1e293b">Current Month Charges &mdash; ' + monthName + '</p>'
-      + '<table><thead><tr><th>Date</th><th>Description</th><th class="right">Amount</th></tr></thead>'
-      + '<tbody>' + chargeRowsFinal + '</tbody>'
-      + '<tr class="total-row"><td colspan="2">Total Current Charges</td><td class="right">' + fmtCurrency(currentTotal) + '</td></tr></table>'
+      + "<table style='margin-bottom:20px;border:none'>"
+      + "<tr><td style='border:none;padding:3px 0;width:50%'><b>Tenant:</b> " + tenant.name + "</td><td style='border:none;padding:3px 0'><b>Unit:</b> " + (prop ? prop.name : "—") + "</td></tr>"
+      + "<tr><td style='border:none;padding:3px 0'><b>Phone:</b> " + (tenant.phone || "—") + "</td><td style='border:none;padding:3px 0'><b>Lease End:</b> " + fmtDate(tenant.leaseEnd) + "</td></tr>"
+      + "</table>"
+      + "<p style='font-weight:700;font-size:13px;margin-bottom:6px;color:#1e293b'>Current Month Charges &mdash; " + monthName + "</p>"
+      + "<table><thead><tr><th>Date</th><th>Description</th><th class='right'>Amount</th></tr></thead>"
+      + "<tbody>" + chargeRowsFinal + "</tbody>"
+      + "<tr class='total-row'><td colspan='2'>Total Current Charges</td><td class='right'>" + fmtCurrency(currentTotal) + "</td></tr></table>"
       + prevSection
-      + '<p style="font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#1e293b">Payments Received &mdash; ' + monthName + '</p>'
-      + '<table><thead><tr><th>Date</th><th>Reference</th><th class="right">Amount</th></tr></thead>'
-      + '<tbody>' + payRowsFinal + '</tbody>'
-      + '<tr class="total-row"><td colspan="2">Total Payments This Month</td><td class="right" style="color:#065f46">' + fmtCurrency(currentPaid) + '</td></tr></table>'
-      + '<table style="margin-top:20px;border:2px solid #e2e8f0;border-radius:8px">'
-      + '<tr style="background:#f8fafc"><td style="padding:10px 14px;font-weight:700">Current Month Charges</td><td class="right bold" style="padding:10px 14px">' + fmtCurrency(currentTotal) + '</td></tr>'
+      + "<p style='font-weight:700;font-size:13px;margin-top:20px;margin-bottom:6px;color:#1e293b'>Payments Received &mdash; " + monthName + "</p>"
+      + "<table><thead><tr><th>Date</th><th>Reference</th><th class='right'>Amount</th></tr></thead>"
+      + "<tbody>" + payRowsFinal + "</tbody>"
+      + "<tr class='total-row'><td colspan='2'>Total Payments This Month</td><td class='right' style='color:#065f46'>" + fmtCurrency(currentPaid) + "</td></tr></table>"
+      + "<table style='margin-top:20px;border:2px solid #e2e8f0;border-radius:8px'>"
+      + "<tr style='background:#f8fafc'><td style='padding:10px 14px;font-weight:700'>Current Month Charges</td><td class='right bold' style='padding:10px 14px'>" + fmtCurrency(currentTotal) + "</td></tr>"
       + prevSummaryRow
-      + '<tr><td style="padding:10px 14px;color:#065f46;font-weight:600">Less: Payments This Month</td><td class="right bold" style="padding:10px 14px;color:#065f46">- ' + fmtCurrency(currentPaid) + '</td></tr>'
-      + '<tr style="background:' + amountDueBg + ';border-top:2px solid #e2e8f0"><td style="padding:12px 14px;font-size:15px;font-weight:800;color:' + amountDueColor + '">AMOUNT DUE</td>'
-      + '<td class="right" style="padding:12px 14px;font-size:18px;font-weight:800;color:' + amountDueColor + '">' + fmtCurrency(remaining) + '</td></tr>'
-      + '</table>'
-      + '<p style="margin-top:28px;font-size:10px;color:#94a3b8;text-align:center">Please pay on or before the due date. Thank you!</p>';
+      + "<tr><td style='padding:10px 14px;color:#065f46;font-weight:600'>Less: Payments This Month</td><td class='right bold' style='padding:10px 14px;color:#065f46'>- " + fmtCurrency(currentPaid) + "</td></tr>"
+      + "<tr style='background:" + amountDueBg + ";border-top:2px solid #e2e8f0'><td style='padding:12px 14px;font-size:15px;font-weight:800;color:" + amountDueColor + "'>AMOUNT DUE</td>"
+      + "<td class='right' style='padding:12px 14px;font-size:18px;font-weight:800;color:" + amountDueColor + "'>" + fmtCurrency(remaining) + "</td></tr>"
+      + "</table>"
+      + "<p style='margin-top:28px;font-size:10px;color:#94a3b8;text-align:center'>Please pay on or before the due date. Thank you!</p>";
+    return { html, filename: "Monthly-SOA-" + tenant.name.replace(/ /g, "-") + "-" + period };
+  };
 
+  const printMonthlySoa = (tenant, period) => {
+    const result = buildMonthlySoaHtml(tenant, period);
+    if (result) printHTML(result.html, "Monthly SOA — " + tenant.name);
+  };
 
-    printHTML(html, `Monthly SOA — ${tenant.name} — ${monthName}`);
+;
+
+  // ── SOA HTML builder (reusable for print AND download) ──
+  const buildSOAHtml = (tenant) => {
+    const ledger = getLedger(tenant.id, charges, payments);
+    const prop = properties.find(p => p.id === tenant.propertyId);
+    const balance = getTenantBalance(tenant.id, charges, payments);
+    const rows = ledger.map(e =>
+      "<tr><td>" + fmtDate(e.date) + "</td><td>" + e.desc + "</td>"
+      + "<td class='right'>" + (e.debit ? fmtCurrency(e.debit) : "—") + "</td>"
+      + "<td class='right'>" + (e.credit ? fmtCurrency(e.credit) : "—") + "</td>"
+      + "<td class='right bold'>" + fmtCurrency(e.balance) + "</td></tr>"
+    ).join("");
+    return PRINT_HEADER("Statement of Account", "Generated: " + fmtDate(today()))
+      + "<table style='margin-bottom:16px;border:none'>"
+      + "<tr><td style='border:none;padding:2px 0'><b>Tenant:</b> " + tenant.name + "</td><td style='border:none;padding:2px 0'><b>Unit:</b> " + (prop ? prop.name : "—") + "</td></tr>"
+      + "<tr><td style='border:none;padding:2px 0'><b>Email:</b> " + (tenant.email||"—") + "</td><td style='border:none;padding:2px 0'><b>Lease End:</b> " + fmtDate(tenant.leaseEnd) + "</td></tr>"
+      + "</table>"
+      + "<table><thead><tr><th>Date</th><th>Description</th><th class='right'>Debit</th><th class='right'>Credit</th><th class='right'>Balance</th></tr></thead>"
+      + "<tbody>" + (rows || "<tr><td colspan='5' style='color:#94a3b8;text-align:center'>No transactions</td></tr>") + "</tbody>"
+      + "<tr class='total-row'><td colspan='3'></td><td class='right'>Outstanding:</td><td class='right'>" + fmtCurrency(balance) + "</td></tr></table>";
   };
 
   const printReceipt = (payment) => {
@@ -623,6 +621,77 @@ function MainApp({ currentUser, onLogout }) {
       + '<tbody>' + rows + '</tbody>'
       + '<tr class="total-row"><td>Total</td><td class="right">' + fmtCurrency(total) + '</td></tr></table>';
     printHTML(incomeHtml, "Income Report");
+  };
+
+  // ── MONTHLY LEDGER (all tenants or single unit) ──
+  const buildMonthlyLedgerHTML = (period, filteredTenants) => {
+    const [yr, mo] = period.split("-");
+    const monthLabel = new Date(Number(yr), Number(mo) - 1, 1).toLocaleString("en-PH", { month: "long", year: "numeric" });
+    let body = "";
+    let grandTotal = 0;
+    let grandPaid = 0;
+
+    filteredTenants.forEach(t => {
+      const prop = properties.find(p => p.id === t.propertyId);
+      const monthCharges  = charges.filter(c => c.tenantId === t.id && c.period === period).sort((a, b) => (a.date||"").localeCompare(b.date||""));
+      const monthPayments = payments.filter(p => p.tenantId === t.id && (p.date||"").slice(0,7) === period).sort((a, b) => (a.date||"").localeCompare(b.date||""));
+      const prevCharges   = charges.filter(c => c.tenantId === t.id && (c.period||"") < period);
+      const prevPayments  = payments.filter(p => p.tenantId === t.id && (p.date||"").slice(0,7) < period);
+      const prevBal = prevCharges.reduce((s,c)=>s+Number(c.amount),0) - prevPayments.reduce((s,p)=>s+Number(p.amount),0);
+      const charged = monthCharges.reduce((s,c)=>s+Number(c.amount),0);
+      const paid    = monthPayments.reduce((s,p)=>s+Number(p.amount),0);
+      const balance = prevBal + charged - paid;
+      grandTotal += charged; grandPaid += paid;
+
+      const entryRows = [
+        ...(prevBal !== 0 ? [{ date: period+"-01", desc: "Balance brought forward", debit: prevBal > 0 ? prevBal : 0, credit: prevBal < 0 ? Math.abs(prevBal) : 0, isBF: true }] : []),
+        ...monthCharges.map(c => ({ date: c.date, desc: c.remarks || c.type, debit: Number(c.amount), credit: 0 })),
+        ...monthPayments.map(p => ({ date: p.date, desc: "Payment — " + p.method + (p.reference ? " " + p.reference : ""), debit: 0, credit: Number(p.amount) })),
+      ].sort((a, b) => (a.date||"").localeCompare(b.date||""));
+
+      let runBal = prevBal;
+      const rows = entryRows.map(e => {
+        runBal += e.debit - e.credit;
+        return "<tr" + (e.isBF ? ' style="background:#f8fafc;font-style:italic"' : "") + ">"
+          + "<td>" + (e.date ? new Date(e.date).toLocaleDateString("en-PH",{month:"short",day:"numeric"}) : "") + "</td>"
+          + "<td>" + e.desc + "</td>"
+          + "<td class='right' style='color:#dc2626'>" + (e.debit ? "₱" + Number(e.debit).toLocaleString("en-PH",{minimumFractionDigits:2}) : "—") + "</td>"
+          + "<td class='right' style='color:#16a34a'>" + (e.credit ? "₱" + Number(e.credit).toLocaleString("en-PH",{minimumFractionDigits:2}) : "—") + "</td>"
+          + "<td class='right bold' style='color:" + (runBal > 0 ? "#dc2626" : "#16a34a") + "'>₱" + Number(runBal).toLocaleString("en-PH",{minimumFractionDigits:2}) + "</td>"
+          + "</tr>";
+      }).join("");
+
+      body += "<h3 style='margin:20px 0 6px;font-size:13px;color:#1e293b'>"
+        + t.name + " &mdash; " + (prop ? prop.name : "—")
+        + "</h3>"
+        + "<table><thead><tr><th>Date</th><th>Description</th><th class='right'>Charges</th><th class='right'>Payments</th><th class='right'>Balance</th></tr></thead>"
+        + "<tbody>" + (rows || "<tr><td colspan='5' style='color:#94a3b8;text-align:center'>No transactions this month</td></tr>") + "</tbody>"
+        + "<tr class='total-row'>"
+        + "<td colspan='2'>Totals</td>"
+        + "<td class='right'>₱" + Number(charged).toLocaleString("en-PH",{minimumFractionDigits:2}) + "</td>"
+        + "<td class='right'>₱" + Number(paid).toLocaleString("en-PH",{minimumFractionDigits:2}) + "</td>"
+        + "<td class='right' style='color:" + (balance>0?"#dc2626":"#16a34a") + "'>₱" + Number(balance).toLocaleString("en-PH",{minimumFractionDigits:2}) + "</td>"
+        + "</tr></table>";
+    });
+
+    return { body, grandTotal, grandPaid, monthLabel };
+  };
+
+  const printMonthlyLedger = (period, filterPropertyId) => {
+    const filtered = filterPropertyId
+      ? tenants.filter(t => t.propertyId === filterPropertyId)
+      : tenants;
+    if (filtered.length === 0) return alert("No tenants found.");
+    const prop = filterPropertyId ? properties.find(p => p.id === filterPropertyId) : null;
+    const { body, grandTotal, grandPaid, monthLabel } = buildMonthlyLedgerHTML(period, filtered);
+    const title = (prop ? prop.name + " — " : "All Units — ") + "Monthly Ledger " + monthLabel;
+    const summary = "<div style='margin-top:24px;padding:14px;background:#f8fafc;border-radius:8px;display:flex;gap:32px'>"
+      + "<div><div style='font-size:11px;color:#64748b'>Total Charged</div><div style='font-size:16px;font-weight:800;color:#dc2626'>₱" + Number(grandTotal).toLocaleString("en-PH",{minimumFractionDigits:2}) + "</div></div>"
+      + "<div><div style='font-size:11px;color:#64748b'>Total Collected</div><div style='font-size:16px;font-weight:800;color:#16a34a'>₱" + Number(grandPaid).toLocaleString("en-PH",{minimumFractionDigits:2}) + "</div></div>"
+      + "<div><div style='font-size:11px;color:#64748b'>Net Outstanding</div><div style='font-size:16px;font-weight:800;color:#4338ca'>₱" + Number(grandTotal - grandPaid).toLocaleString("en-PH",{minimumFractionDigits:2}) + "</div></div>"
+      + "</div>";
+    const html = PRINT_HEADER(title, "As of " + new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"})) + body + summary;
+    return { html, title };
   };
 
   const SyncBar = () => syncing ? <div className="fixed top-14 left-0 right-0 z-50 bg-indigo-600 text-white text-xs font-semibold text-center py-1.5">Saving…</div> : null;
@@ -664,7 +733,8 @@ function MainApp({ currentUser, onLogout }) {
             <button onClick={() => setModal({ type: "payment" })} className="flex items-center gap-2 bg-indigo-600 text-white rounded-xl px-4 py-3 text-sm font-semibold hover:bg-indigo-700"><Icon name="wallet" size={16} /> Record Payment</button>
             <button onClick={() => setModal({ type: "charge" })}  className="flex items-center gap-2 bg-slate-800 text-white rounded-xl px-4 py-3 text-sm font-semibold hover:bg-slate-900"><Icon name="plus" size={16} /> Add Charge</button>
             <button onClick={() => { const p = prompt("Billing period (YYYY-MM):"); if (p) generateMonthlyBilling(p); }} className="flex items-center gap-2 border-2 border-indigo-200 text-indigo-700 rounded-xl px-4 py-3 text-sm font-semibold hover:bg-indigo-50"><Icon name="calendar" size={16} /> Generate Billing</button>
-            <button onClick={printIncomeReport} className="flex items-center gap-2 border-2 border-slate-200 text-slate-700 rounded-xl px-4 py-3 text-sm font-semibold hover:bg-slate-50"><Icon name="download" size={16} /> Income Report</button>
+            <button onClick={() => { const p = prompt("Period (YYYY-MM):"); if (!p) return; const r = printMonthlyLedger(p, null); if (r) printHTML(r.html, r.title); }} className="flex items-center gap-2 border-2 border-slate-200 text-slate-700 rounded-xl px-4 py-3 text-sm font-semibold hover:bg-slate-50"><Icon name="list" size={16} /> Monthly Ledger</button>
+            <button onClick={() => { const p = prompt("Period (YYYY-MM):"); if (!p) return; setModal({ type: "ledgerByUnit", period: p }); }} className="flex items-center gap-2 border-2 border-slate-200 text-slate-700 rounded-xl px-4 py-3 text-sm font-semibold hover:bg-slate-50"><Icon name="building" size={16} /> Ledger by Unit</button>
             <button onClick={loadAll} className="flex items-center justify-center gap-2 border-2 border-emerald-200 text-emerald-700 rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-emerald-50"><Icon name="refresh" size={15} /> Refresh</button>
             <button onClick={() => { setResetPwd(""); setResetErr(false); setModal({ type: "reset" }); }} className="flex items-center justify-center gap-2 border-2 border-rose-200 text-rose-400 rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-rose-50"><Icon name="trash" size={15} /> Reset Data</button>
           </div>
@@ -714,9 +784,10 @@ function MainApp({ currentUser, onLogout }) {
               <div><span className="text-slate-400">Monthly Rent</span><br /><span className="font-medium">{fmtCurrency(t.monthlyRent)}</span></div>
               <div><span className="text-slate-400">Deposit</span><br /><span className="font-medium">{fmtCurrency(t.deposit)}</span></div>
             </div>
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => printSOA(t)} className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-xl py-2.5 text-sm font-semibold"><Icon name="download" size={14} /> Print SOA</button>
-              <button onClick={() => { setModal({ type: "payment" }); setPayForm(f => ({ ...f, tenantId: t.id })); }} className="flex-1 flex items-center justify-center gap-2 border-2 border-indigo-200 text-indigo-700 rounded-xl py-2.5 text-sm font-semibold"><Icon name="wallet" size={14} /> Payment</button>
+            <div className="flex gap-2 mt-4 flex-wrap">
+              <button onClick={() => printSOA(t)} className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-xl py-2.5 text-sm font-semibold min-w-[100px]"><Icon name="receipt" size={14} /> Print SOA</button>
+              <button onClick={() => downloadHTML(buildSOAHtml(t), "SOA-" + t.name.replace(/ /g,"-"))} className="flex-1 flex items-center justify-center gap-2 border-2 border-indigo-200 text-indigo-700 rounded-xl py-2.5 text-sm font-semibold min-w-[110px]"><Icon name="download" size={14} /> Download SOA</button>
+              <button onClick={() => { setModal({ type: "payment" }); setPayForm(f => ({ ...f, tenantId: t.id })); }} className="flex-1 flex items-center justify-center gap-2 border-2 border-slate-200 text-slate-700 rounded-xl py-2.5 text-sm font-semibold min-w-[100px]"><Icon name="wallet" size={14} /> Payment</button>
             </div>
           </Card>
           <Card>
@@ -896,44 +967,160 @@ function MainApp({ currentUser, onLogout }) {
   };
 
   const ReportsView = () => {
+    const [incomeUnit,   setIncomeUnit]   = useState("all");
+    const [ledgerPeriod, setLedgerPeriod] = useState(today().slice(0, 7));
+    const [ledgerUnit,   setLedgerUnit]   = useState("all");
+
     const totalCollected = payments.reduce((s, p) => s + Number(p.amount), 0);
     const totalBilled    = charges.reduce((s, c) => s + Number(c.amount), 0);
     const outstanding    = tenants.reduce((s, t) => s + Math.max(0, getTenantBalance(t.id, charges, payments)), 0);
     const byMethod = payments.reduce((acc, p) => { acc[p.method] = (acc[p.method] || 0) + Number(p.amount); return acc; }, {});
-    const printOutstanding = () => {
-      const rows = tenants.map(t => { const b = getTenantBalance(t.id, charges, payments); const prop = properties.find(p => p.id === t.propertyId); return `<tr><td>${t.name}</td><td>${prop?.name || "—"}</td><td class="right bold ${b > 0 ? "red" : "green"}">${fmtCurrency(b)}</td></tr>`; }).join("");
-      const outstandingHtml = PRINT_HEADER("Outstanding Balances Report", fmtDate(today()))
-        + '<table><thead><tr><th>Tenant</th><th>Unit</th><th class="right">Balance</th></tr></thead>'
-        + '<tbody>' + rows + '</tbody>'
-        + '<tr class="total-row"><td colspan="2">Total Outstanding</td><td class="right">' + fmtCurrency(outstanding) + '</td></tr></table>';
-      printHTML(outstandingHtml, "Outstanding Balances");
+
+    // ── Outstanding HTML builder ──
+    const buildOutstandingHtml = () => {
+      const rows = tenants.map(t => {
+        const b = getTenantBalance(t.id, charges, payments);
+        const prop = properties.find(p => p.id === t.propertyId);
+        return "<tr><td>" + t.name + "</td><td>" + (prop ? prop.name : "—") + "</td>"
+          + "<td class='right bold " + (b > 0 ? "red" : "green") + "'>" + fmtCurrency(b) + "</td></tr>";
+      }).join("");
+      return PRINT_HEADER("Outstanding Balances Report", fmtDate(today()))
+        + "<table><thead><tr><th>Tenant</th><th>Unit</th><th class='right'>Balance</th></tr></thead>"
+        + "<tbody>" + rows + "</tbody>"
+        + "<tr class='total-row'><td colspan='2'>Total Outstanding</td><td class='right'>" + fmtCurrency(outstanding) + "</td></tr></table>";
     };
+
+    // ── Income Report HTML builder ──
+    const buildIncomeHtml = () => {
+      const filteredPayments = incomeUnit === "all"
+        ? payments
+        : payments.filter(p => { const t = tenants.find(t => t.id === p.tenantId); return t && t.propertyId === incomeUnit; });
+      const byMonth = {};
+      filteredPayments.forEach(p => { const m = (p.date||"").slice(0,7); if (m) byMonth[m] = (byMonth[m]||0) + Number(p.amount); });
+      const months = Object.keys(byMonth).sort().reverse();
+      const rows = months.map(m => "<tr><td>" + m + "</td><td class='right'>" + fmtCurrency(byMonth[m]) + "</td></tr>").join("");
+      const total = filteredPayments.reduce((s, p) => s + Number(p.amount), 0);
+      const unitLabel = incomeUnit === "all" ? "All Units" : (properties.find(p => p.id === incomeUnit)?.name || "");
+      return PRINT_HEADER("Monthly Income Report &mdash; " + unitLabel, "As of " + fmtDate(today()))
+        + "<table><thead><tr><th>Period</th><th class='right'>Collected</th></tr></thead>"
+        + "<tbody>" + (rows || "<tr><td colspan='2' style='color:#94a3b8;text-align:center'>No payments found</td></tr>") + "</tbody>"
+        + "<tr class='total-row'><td>Total</td><td class='right'>" + fmtCurrency(total) + "</td></tr></table>";
+    };
+
+    const PrintDownloadBtns = ({ buildHtml, filename, color = "indigo" }) => {
+      const colors = { indigo: "text-indigo-600 border-indigo-200 hover:bg-indigo-50", emerald: "text-emerald-700 border-emerald-200 hover:bg-emerald-50", rose: "text-rose-600 border-rose-200 hover:bg-rose-50", amber: "text-amber-700 border-amber-200 hover:bg-amber-50" };
+      return (
+        <div className="flex gap-2 mt-2">
+          <button onClick={() => printHTML(buildHtml(), filename)} className={"flex-1 flex items-center justify-center gap-1.5 border rounded-lg py-2 text-xs font-semibold " + colors[color]}>
+            <Icon name="receipt" size={13} /> Print
+          </button>
+          <button onClick={() => downloadHTML(buildHtml(), filename)} className={"flex-1 flex items-center justify-center gap-1.5 border rounded-lg py-2 text-xs font-semibold " + colors[color]}>
+            <Icon name="download" size={13} /> Download
+          </button>
+        </div>
+      );
+    };
+
     return (
       <div className="space-y-4">
         <OwnerWatermark />
         <div><h1 className="text-xl font-bold text-slate-800">Reports</h1><p className="text-sm text-slate-500">Financial summary</p></div>
+
         <div className="grid grid-cols-2 gap-3">
           <StatCard label="Total Collected" value={fmtCurrency(totalCollected)} icon="wallet"   color="emerald" />
           <StatCard label="Total Billed"    value={fmtCurrency(totalBilled)}    icon="receipt"  color="blue" />
           <StatCard label="Outstanding"     value={fmtCurrency(outstanding)}    icon="alert"    color="rose" />
           <StatCard label="Collection Rate" value={totalBilled ? Math.round(totalCollected / totalBilled * 100) + "%" : "—"} icon="trending" color="indigo" />
         </div>
+
+        {/* Tenant Balances */}
         <Card>
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between"><p className="font-semibold text-slate-800 text-sm">Tenant Balances</p><button onClick={printOutstanding} className="text-xs text-indigo-600 font-semibold flex items-center gap-1"><Icon name="download" size={12} /> Print</button></div>
+          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+            <p className="font-semibold text-slate-800 text-sm">Tenant Balances</p>
+          </div>
           {tenants.length === 0 && <p className="p-4 text-sm text-slate-400 text-center">No tenants.</p>}
-          {tenants.map(t => { const balance = getTenantBalance(t.id, charges, payments); const prop = properties.find(p => p.id === t.propertyId); return (<div key={t.id} className="flex items-center justify-between p-3 border-b border-slate-50 last:border-0"><div><p className="text-sm font-semibold text-slate-800">{t.name}</p><p className="text-xs text-slate-400">{prop?.name}</p></div><p className={`text-sm font-bold ${balance > 0 ? "text-rose-600" : "text-emerald-600"}`}>{fmtCurrency(balance)}</p></div>); })}
+          {tenants.map(t => { const balance = getTenantBalance(t.id, charges, payments); const prop = properties.find(p => p.id === t.propertyId); return (
+            <div key={t.id} className="flex items-center justify-between p-3 border-b border-slate-50 last:border-0">
+              <div><p className="text-sm font-semibold text-slate-800">{t.name}</p><p className="text-xs text-slate-400">{prop?.name}</p></div>
+              <p className={"text-sm font-bold " + (balance > 0 ? "text-rose-600" : "text-emerald-600")}>{fmtCurrency(balance)}</p>
+            </div>
+          ); })}
+          <div className="p-3">
+            <PrintDownloadBtns buildHtml={buildOutstandingHtml} filename="Outstanding-Balances" color="rose" />
+          </div>
         </Card>
+
+        {/* Payments by Method */}
         <Card>
           <div className="p-4 border-b border-slate-100"><p className="font-semibold text-slate-800 text-sm">Payments by Method</p></div>
           {Object.keys(byMethod).length === 0 && <p className="p-4 text-sm text-slate-400 text-center">No payments yet.</p>}
-          {Object.entries(byMethod).map(([m, v]) => (<div key={m} className="flex items-center justify-between p-3 border-b border-slate-50 last:border-0"><p className="text-sm text-slate-700 font-medium">{m}</p><p className="text-sm font-bold text-slate-800">{fmtCurrency(v)}</p></div>))}
+          {Object.entries(byMethod).map(([m, v]) => (
+            <div key={m} className="flex items-center justify-between p-3 border-b border-slate-50 last:border-0">
+              <p className="text-sm text-slate-700 font-medium">{m}</p>
+              <p className="text-sm font-bold text-slate-800">{fmtCurrency(v)}</p>
+            </div>
+          ))}
         </Card>
+
+        {/* Income Report */}
         <Card className="p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Export</p>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Income Report</p>
+          <Field label="Filter by Unit">
+            <AppSelect value={incomeUnit} onChange={e => setIncomeUnit(e.target.value)}>
+              <option value="all">All Units</option>
+              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </AppSelect>
+          </Field>
+          <PrintDownloadBtns buildHtml={buildIncomeHtml} filename={"Income-Report-" + (incomeUnit === "all" ? "All" : (properties.find(p=>p.id===incomeUnit)?.unit||incomeUnit))} color="indigo" />
+        </Card>
+
+        {/* Monthly Ledger */}
+        <Card className="p-4">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Monthly Ledger</p>
+          <Field label="Period">
+            <Input type="month" value={ledgerPeriod} onChange={e => setLedgerPeriod(e.target.value)} />
+          </Field>
+          <Field label="Filter by Unit">
+            <AppSelect value={ledgerUnit} onChange={e => setLedgerUnit(e.target.value)}>
+              <option value="all">All Units</option>
+              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </AppSelect>
+          </Field>
+          <PrintDownloadBtns
+            buildHtml={() => {
+              const filtered = ledgerUnit === "all" ? tenants : tenants.filter(t => t.propertyId === ledgerUnit);
+              const r = printMonthlyLedger(ledgerPeriod, ledgerUnit === "all" ? null : ledgerUnit);
+              return r ? r.html : "<p>No data</p>";
+            }}
+            filename={"Monthly-Ledger-" + ledgerPeriod + (ledgerUnit !== "all" ? "-" + (properties.find(p=>p.id===ledgerUnit)?.unit||"") : "")}
+            color="emerald"
+          />
+        </Card>
+
+        {/* SOA per tenant */}
+        <Card className="p-4">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Statement of Account (SOA)</p>
           <div className="space-y-2">
-            <button onClick={printIncomeReport} className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 w-full"><div className="p-2 bg-indigo-50 rounded-lg"><Icon name="trending" size={16} className="text-indigo-600" /></div> Monthly Income Report</button>
-            <button onClick={printOutstanding} className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 w-full"><div className="p-2 bg-rose-50 rounded-lg"><Icon name="alert" size={16} className="text-rose-600" /></div> Outstanding Balances</button>
-            {tenants.map(t => (<button key={t.id} onClick={() => printSOA(t)} className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 w-full"><div className="p-2 bg-emerald-50 rounded-lg"><Icon name="receipt" size={16} className="text-emerald-600" /></div> SOA — {t.name}</button>))}
+            {tenants.length === 0 && <p className="text-sm text-slate-400 text-center py-2">No tenants yet.</p>}
+            {tenants.map(t => {
+              const prop = properties.find(p => p.id === t.propertyId);
+              return (
+                <div key={t.id} className="border border-slate-200 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div><p className="text-sm font-semibold text-slate-800">{t.name}</p><p className="text-xs text-slate-400">{prop?.name}</p></div>
+                    <span className={"text-xs font-bold px-2 py-0.5 rounded-full " + (getTenantBalance(t.id,charges,payments) > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700")}>{fmtCurrency(Math.abs(getTenantBalance(t.id,charges,payments)))}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => printSOA(t)} className="flex-1 flex items-center justify-center gap-1.5 border border-emerald-200 text-emerald-700 rounded-lg py-1.5 text-xs font-semibold hover:bg-emerald-50">
+                      <Icon name="receipt" size={13} /> Print SOA
+                    </button>
+                    <button onClick={() => { const soaHtml2 = buildSOAHtml(t); downloadHTML(soaHtml2, "SOA-" + t.name.replace(/ /g,"-")); }} className="flex-1 flex items-center justify-center gap-1.5 border border-emerald-200 text-emerald-700 rounded-lg py-1.5 text-xs font-semibold hover:bg-emerald-50">
+                      <Icon name="download" size={13} /> Download SOA
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
       </div>
@@ -1037,6 +1224,36 @@ function MainApp({ currentUser, onLogout }) {
           <button onClick={saveCharge} className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold mt-2 hover:bg-indigo-700">Add Charge</button>
         </AppModal>
       )}
+      {/* Ledger by Unit modal */}
+      {modal?.type === "ledgerByUnit" && (
+        <AppModal title="Monthly Ledger by Unit" onClose={closeModal}>
+          <Field label="Select Unit">
+            <AppSelect defaultValue="" onChange={e => {
+              if (!e.target.value) return;
+              const r = printMonthlyLedger(modal.period, e.target.value);
+              if (r) printHTML(r.html, r.title);
+              closeModal();
+            }}>
+              <option value="">Choose a unit…</option>
+              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </AppSelect>
+          </Field>
+          <p className="text-xs text-slate-400 text-center mt-1">Selecting a unit will print immediately.</p>
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => {
+              const r = printMonthlyLedger(modal.period, null);
+              if (r) printHTML(r.html, r.title);
+              closeModal();
+            }} className="flex-1 border-2 border-indigo-200 text-indigo-700 rounded-xl py-2.5 text-sm font-semibold hover:bg-indigo-50">Print All Units</button>
+            <button onClick={() => {
+              const r = printMonthlyLedger(modal.period, null);
+              if (r) downloadHTML(r.html, r.title);
+              closeModal();
+            }} className="flex-1 border-2 border-emerald-200 text-emerald-700 rounded-xl py-2.5 text-sm font-semibold hover:bg-emerald-50">Download All</button>
+          </div>
+        </AppModal>
+      )}
+
       {modal?.type === "reset" && (
         <AppModal title="Reset All Data" onClose={closeModal}>
           <div className="flex flex-col items-center text-center gap-3 py-2">
@@ -1141,12 +1358,14 @@ function MainApp({ currentUser, onLogout }) {
               );
             })()}
 
-            <button
-              onClick={() => { printMonthlySoa(soaModal.tenant, soaPeriod); }}
-              className="w-full bg-emerald-600 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-700 flex items-center justify-center gap-2"
-            >
-              <Icon name="download" size={16} /> Print Monthly SOA
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => { printMonthlySoa(soaModal.tenant, soaPeriod); }} className="flex-1 bg-emerald-600 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-700 flex items-center justify-center gap-2">
+                <Icon name="receipt" size={16} /> Print
+              </button>
+              <button onClick={() => { const r2 = buildMonthlySoaHtml(soaModal.tenant, soaPeriod); if(r2) downloadHTML(r2.html, r2.filename); }} className="flex-1 border-2 border-emerald-200 text-emerald-700 rounded-xl py-3 text-sm font-bold hover:bg-emerald-50 flex items-center justify-center gap-2">
+                <Icon name="download" size={16} /> Download
+              </button>
+            </div>
           </div>
         </AppModal>
       )}
