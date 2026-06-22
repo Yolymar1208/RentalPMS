@@ -218,12 +218,20 @@ const AppModal = ({ title, onClose, children }) => (
 );
 const Card = ({ children, className = "" }) => <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 ${className}`}>{children}</div>;
 const StatCard = ({ label, value, icon, color, sub }) => {
-  const colors = { indigo: "bg-indigo-50 text-indigo-600", emerald: "bg-emerald-50 text-emerald-600", rose: "bg-rose-50 text-rose-600", blue: "bg-blue-50 text-blue-600" };
+  const tints = {
+    indigo:  { bg: "bg-gradient-to-br from-white to-indigo-50",  border: "border-indigo-100", chip: "bg-indigo-100 text-indigo-600" },
+    emerald: { bg: "bg-gradient-to-br from-white to-emerald-50", border: "border-emerald-100", chip: "bg-emerald-100 text-emerald-700" },
+    rose:    { bg: "bg-gradient-to-br from-white to-rose-50",    border: "border-rose-100", chip: "bg-rose-100 text-rose-600" },
+    blue:    { bg: "bg-gradient-to-br from-white to-blue-50",    border: "border-blue-100", chip: "bg-blue-100 text-blue-600" },
+  };
+  const t = tints[color] || tints.indigo;
   return (
-    <Card className="p-4 flex items-start gap-3">
-      <div className={`p-2.5 rounded-xl ${colors[color]}`}><Icon name={icon} size={20} /></div>
-      <div className="min-w-0"><p className="text-xs text-slate-500 font-medium">{label}</p><p className="text-lg font-bold text-slate-800 truncate">{value}</p>{sub && <p className="text-xs text-slate-400">{sub}</p>}</div>
-    </Card>
+    <div className={`rounded-[18px] p-3.5 border shadow-sm ${t.bg} ${t.border}`}>
+      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${t.chip}`}><Icon name={icon} size={17} /></div>
+      <p className="text-xs text-slate-500 font-medium mt-2.5">{label}</p>
+      <p className="text-2xl font-extrabold text-slate-800 tracking-tight leading-tight truncate">{value}</p>
+      {sub && <p className="text-[11px] text-slate-400 font-semibold mt-0.5">{sub}</p>}
+    </div>
   );
 };
 const Field = ({ label, children }) => (
@@ -284,57 +292,104 @@ const AuthScreen = ({ onLogin }) => {
     finally { setLoading(false); }
   };
 
+  const labelCls = "block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5";
+  const inputCls = "w-full border border-slate-200 rounded-2xl pl-10 pr-4 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors";
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-slate-50 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center mb-8">
-          <HotelLogo size={64} />
-          <div className="flex items-baseline gap-2 mt-3"><h1 className="text-3xl font-black text-slate-800 tracking-tight">{APP_NAME}</h1><span className="text-slate-300 text-sm font-medium">—{APP_SUB}</span></div>
-          <p className="text-xs text-slate-400 mt-1">Rental Property Management</p>
+    <div className="min-h-screen bg-slate-50 font-sans">
+      {/* Indigo gradient band with curved bottom */}
+      <div className="bg-gradient-to-b from-indigo-800 via-indigo-600 to-indigo-500 rounded-b-[38px] px-7 pt-16 pb-14 flex flex-col items-center text-white shadow-[0_22px_44px_-22px_rgba(67,56,202,0.6)]">
+        {/* Hotel logo with translucent white background to read on indigo */}
+        <svg width="62" height="62" viewBox="0 0 40 40" fill="none">
+          <rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.16)"/>
+          <rect x="13" y="10" width="14" height="22" fill="white" opacity="0.95"/>
+          <rect x="6" y="16" width="8" height="16" fill="white" opacity="0.75"/>
+          <rect x="26" y="16" width="8" height="16" fill="white" opacity="0.75"/>
+          <polygon points="20,4 27,10 13,10" fill="white" opacity="0.9"/>
+          <rect x="16" y="13" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
+          <rect x="21" y="13" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
+          <rect x="16" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
+          <rect x="21" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.7"/>
+          <rect x="8" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
+          <rect x="8" y="25" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
+          <rect x="29" y="19" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
+          <rect x="29" y="25" width="3" height="3" rx="0.5" fill="#4338ca" opacity="0.5"/>
+          <rect x="17.5" y="26" width="5" height="6" rx="2.5" fill="#4338ca" opacity="0.8"/>
+          <line x1="20" y1="4" x2="20" y2="1" stroke="white" strokeWidth="1" opacity="0.8"/>
+          <polygon points="20,1 23,2.5 20,4" fill="#fbbf24"/>
+        </svg>
+        <div className="flex items-baseline gap-2 mt-4">
+          <span className="text-3xl font-extrabold tracking-tight">{APP_NAME}</span>
+          <span className="text-[13px] text-white/60 font-medium">—{APP_SUB}</span>
         </div>
-        <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+        <p className="text-xs text-white/70 mt-2">Rental Property Management</p>
+      </div>
+
+      {/* Auth card — overlaps the band */}
+      <div className="px-5 -mt-9 pb-8">
+        <div className="bg-white rounded-[26px] shadow-2xl border border-slate-100 overflow-hidden">
+          {/* Tabs */}
           <div className="flex border-b border-slate-100">
-            <button onClick={() => { setMode("signin"); setError(""); }} className={`flex-1 py-3.5 text-sm font-bold transition-colors ${mode === "signin" ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50" : "text-slate-400 hover:text-slate-600"}`}>Sign In</button>
-            <button onClick={() => { setMode("signup"); setError(""); }} className={`flex-1 py-3.5 text-sm font-bold transition-colors ${mode === "signup" ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50" : "text-slate-400 hover:text-slate-600"}`}>Sign Up</button>
+            <button onClick={() => { setMode("signin"); setError(""); }} className={`flex-1 py-4 text-sm font-bold transition-colors ${mode === "signin" ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-600/[0.04]" : "text-slate-400 hover:text-slate-600"}`}>Sign In</button>
+            <button onClick={() => { setMode("signup"); setError(""); }} className={`flex-1 py-4 text-sm font-bold transition-colors ${mode === "signup" ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-600/[0.04]" : "text-slate-400 hover:text-slate-600"}`}>Sign Up</button>
           </div>
-          <div className="p-6 space-y-3">
+
+          {/* Form */}
+          <div className="p-6 space-y-3.5">
             {mode === "signup" && (
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Full Name</label>
-                <div className="relative"><Icon name="user" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Your full name" className="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50" /></div>
+                <label className={labelCls}>Full Name</label>
+                <div className="relative">
+                  <Icon name="user" size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Your full name" className={inputCls} />
+                </div>
               </div>
             )}
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Email</label>
-              <div className="relative"><Icon name="user" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="you@email.com" className="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50" /></div>
+              <label className={labelCls}>Email</label>
+              <div className="relative">
+                <Icon name="user" size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="you@email.com" className={inputCls} />
+              </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Password</label>
+              <label className={labelCls}>Password</label>
               <div className="relative">
-                <Icon name="lock" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type={showPw ? "text" : "password"} value={form.password} onChange={e => set("password", e.target.value)} onKeyDown={e => e.key === "Enter" && (mode === "signin" ? handleSignIn() : handleSignUp())} placeholder={mode === "signup" ? "Min. 6 characters" : "Your password"} className="w-full border border-slate-200 rounded-xl pl-9 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50" />
-                <button onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><Icon name={showPw ? "eyeoff" : "eye"} size={15} /></button>
+                <Icon name="lock" size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type={showPw ? "text" : "password"} value={form.password} onChange={e => set("password", e.target.value)} onKeyDown={e => e.key === "Enter" && (mode === "signin" ? handleSignIn() : handleSignUp())} placeholder={mode === "signup" ? "Min. 6 characters" : "Your password"} className={inputCls + " pr-11"} />
+                <button onClick={() => setShowPw(v => !v)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><Icon name={showPw ? "eyeoff" : "eye"} size={16} /></button>
               </div>
             </div>
             {mode === "signup" && (
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Invite Code</label>
-                <div className="relative"><Icon name="key" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="PROP-XXXX-YOLY" className="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50 font-mono tracking-widest" /></div>
-                <p className="text-xs text-slate-400 mt-1">You need an invite code from Yoly to sign up.</p>
+                <label className={labelCls}>Invite Code</label>
+                <div className="relative">
+                  <Icon name="key" size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="PROP-XXXX-YOLY" className={inputCls + " font-mono tracking-widest"} />
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5">You need an invite code from Yoly to sign up.</p>
               </div>
             )}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 flex items-center gap-2">
-                <Icon name="alert" size={14} className="text-red-500 flex-shrink-0" />
-                <p className="text-xs text-red-700 font-medium">{error}</p>
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl px-3.5 py-3 flex items-center gap-2">
+                <Icon name="alert" size={14} className="text-rose-600 flex-shrink-0" />
+                <p className="text-xs text-rose-700 font-semibold">{error}</p>
               </div>
             )}
-            <button onClick={mode === "signin" ? handleSignIn : handleSignUp} disabled={loading} className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-60 mt-1">
+            <button
+              onClick={mode === "signin" ? handleSignIn : handleSignUp}
+              disabled={loading}
+              className="w-full bg-gradient-to-br from-indigo-600 to-indigo-500 text-white rounded-2xl py-3.5 text-sm font-bold hover:from-indigo-700 hover:to-indigo-600 transition-all disabled:opacity-60 mt-1 shadow-[0_10px_22px_-10px_rgba(67,56,202,0.7)] active:scale-[0.98]"
+            >
               {loading ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
             </button>
+            {mode === "signin" && (
+              <div className="text-center pt-1">
+                <span className="text-[13px] text-indigo-600 font-semibold">Forgot password?</span>
+              </div>
+            )}
           </div>
         </div>
-        <p className="text-center text-xs text-slate-400 mt-6">EULA RentalPMS · Private Access Only</p>
+        <p className="text-center text-xs text-slate-400 mt-6">EULA RentalPMS · Private access only</p>
       </div>
     </div>
   );
@@ -840,50 +895,102 @@ function MainApp({ currentUser, onLogout }) {
     const expiringLeases = tenants.filter(t => { const d = (new Date(t.leaseEnd) - new Date()) / 86400000; return d > 0 && d < 90; });
     return (
       <div className="space-y-4">
-        <div className="bg-gradient-to-r from-indigo-700 to-indigo-500 rounded-2xl px-5 py-4 shadow-md flex items-center gap-4">
-          <HotelLogo size={48} />
-          <div>
-              <div className="flex items-baseline gap-2"><span className="text-white text-2xl font-black tracking-tight">{APP_NAME}</span><span className="text-indigo-300 text-sm font-medium">—{APP_SUB}</span></div>
-            <p className="text-indigo-200 text-sm mt-0.5">Welcome, {currentUser.name.split(" ")[0]}</p>
+        {/* PREMIUM HERO — gradient card with revenue front and center */}
+        <div className="relative rounded-3xl p-5 text-white shadow-[0_16px_30px_-12px_rgba(67,56,202,0.55)] bg-gradient-to-br from-indigo-800 via-indigo-600 to-indigo-500 overflow-hidden">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              {/* Hotel logo on translucent bg */}
+              <div className="w-8 h-8 rounded-xl bg-white/[0.16] flex items-center justify-center">
+                <svg width="22" height="22" viewBox="0 0 40 40" fill="none">
+                  <rect x="13" y="10" width="14" height="22" fill="white" opacity="0.95"/>
+                  <rect x="6" y="16" width="8" height="16" fill="white" opacity="0.75"/>
+                  <rect x="26" y="16" width="8" height="16" fill="white" opacity="0.75"/>
+                  <polygon points="20,4 27,10 13,10" fill="white" opacity="0.9"/>
+                  <rect x="17.5" y="26" width="5" height="6" rx="2.5" fill="#4338ca" opacity="0.85"/>
+                  <line x1="20" y1="4" x2="20" y2="1" stroke="white" strokeWidth="1.2" opacity="0.8"/>
+                  <polygon points="20,1 23,2.5 20,4" fill="#fbbf24"/>
+                </svg>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-lg font-extrabold tracking-tight">{APP_NAME}</span>
+                <span className="text-[11px] text-white/60 font-medium">—{APP_SUB}</span>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-white/[0.18] flex items-center justify-center text-sm font-bold">
+              {(currentUser.name || "?").charAt(0).toUpperCase()}
+            </div>
+          </div>
+          <p className="text-sm text-white/80 mt-4">Good day, {currentUser.name.split(" ")[0]}</p>
+          <p className="text-xs text-white/55 font-medium mt-2.5">Monthly revenue</p>
+          <p className="text-[34px] font-extrabold tracking-tight leading-none mt-0.5">{fmtCurrency(monthlyRev).split(".")[0]}<span className="text-[17px] text-white/55">.{(fmtCurrency(monthlyRev).split(".")[1] || "00")}</span></p>
+          <div className="flex gap-2 mt-4">
+            <span className="text-[11px] font-semibold bg-white/[0.18] px-2.5 py-1 rounded-full">{occupied} of {properties.length} occupied</span>
+            <span className="text-[11px] font-semibold bg-white/[0.18] px-2.5 py-1 rounded-full">{monthlyRev > 0 ? Math.round((monthlyRev - outstanding) / monthlyRev * 100) : 0}% collected</span>
           </div>
         </div>
+
+        {/* STAT CARDS — 2×2 grid with gradient tints + icon chips */}
         <div className="grid grid-cols-2 gap-3">
-          <StatCard label="Total Units"     value={properties.length}        icon="building" color="indigo" />
-          <StatCard label="Occupied"        value={occupied}                 icon="users"    color="emerald" sub={`${vacant} vacant`} />
-          <StatCard label="Monthly Revenue" value={fmtCurrency(monthlyRev)}  icon="trending" color="blue" />
-          <StatCard label="Outstanding"     value={fmtCurrency(outstanding)} icon="alert"    color="rose" />
+          <StatCard label="Total units"     value={properties.length}                                  icon="building" color="indigo" />
+          <StatCard label="Occupied"        value={<>{occupied} <span className="text-[13px] text-slate-400 font-semibold">/ {vacant} vacant</span></>} icon="users" color="emerald" />
+          <StatCard label="Outstanding"     value={fmtCurrency(outstanding)}                           icon="alert"    color="rose" />
+          <StatCard label="Collection rate" value={monthlyRev > 0 ? Math.round((monthlyRev - outstanding) / monthlyRev * 100) + "%" : "—"} icon="trending" color="blue" />
         </div>
-        <Card className="p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Quick Actions</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setModal({ type: "payment" })} className="flex items-center gap-2 bg-indigo-600 text-white rounded-xl px-4 py-3 text-sm font-semibold hover:bg-indigo-700"><Icon name="wallet" size={16} /> Record Payment</button>
-            <button onClick={() => setModal({ type: "charge" })}  className="flex items-center gap-2 bg-slate-800 text-white rounded-xl px-4 py-3 text-sm font-semibold hover:bg-slate-900"><Icon name="plus" size={16} /> Add Charge</button>
-            <button onClick={() => { const p = prompt("Period (YYYY-MM):"); if (!p) return; const r = printMonthlyLedger(p, null); if (r) printHTML(r.html, r.title); }} className="flex items-center gap-2 border-2 border-slate-200 text-slate-700 rounded-xl px-4 py-3 text-sm font-semibold hover:bg-slate-50"><Icon name="list" size={16} /> Monthly Ledger</button>
-            <button onClick={() => setModal({ type: "ledgerByUnit" })} className="flex items-center gap-2 border-2 border-slate-200 text-slate-700 rounded-xl px-4 py-3 text-sm font-semibold hover:bg-slate-50"><Icon name="building" size={16} /> Ledger by Unit</button>
-            <button onClick={loadAll} className="flex items-center justify-center gap-2 border-2 border-emerald-200 text-emerald-700 rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-emerald-50"><Icon name="refresh" size={15} /> Refresh</button>
-            <button onClick={() => { setResetPwd(""); setResetErr(false); setModal({ type: "reset" }); }} className="flex items-center justify-center gap-2 border-2 border-rose-200 text-rose-400 rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-rose-50"><Icon name="trash" size={15} /> Reset Data</button>
+
+        {/* QUICK ACTIONS — decluttered to 4 focused buttons */}
+        <div className="bg-white rounded-[20px] p-4 shadow-sm border border-slate-100">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">Quick actions</p>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button onClick={() => setModal({ type: "payment" })} className="flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-2xl px-4 py-3 text-sm font-bold hover:bg-indigo-700 active:scale-[0.98] transition-all shadow-[0_8px_18px_-10px_rgba(67,56,202,0.55)]"><Icon name="wallet" size={16} /> Record payment</button>
+            <button onClick={() => setModal({ type: "charge" })}  className="flex items-center justify-center gap-2 bg-slate-900 text-white rounded-2xl px-4 py-3 text-sm font-bold hover:bg-slate-800 active:scale-[0.98] transition-all"><Icon name="plus" size={16} /> Add charge</button>
+            <button onClick={() => { const p = prompt("Period (YYYY-MM):"); if (!p) return; const r = printMonthlyLedger(p, null); if (r) printHTML(r.html, r.title); }} className="flex items-center justify-center gap-2 border-2 border-slate-200 text-slate-700 rounded-2xl px-4 py-3 text-sm font-bold hover:bg-slate-50 active:scale-[0.98] transition-all"><Icon name="list" size={16} /> Monthly ledger</button>
+            <button onClick={() => setModal({ type: "ledgerByUnit" })} className="flex items-center justify-center gap-2 border-2 border-slate-200 text-slate-700 rounded-2xl px-4 py-3 text-sm font-bold hover:bg-slate-50 active:scale-[0.98] transition-all"><Icon name="building" size={16} /> Ledger by unit</button>
           </div>
-        </Card>
-        <Card>
-          <div className="p-4 border-b border-slate-100"><p className="font-semibold text-slate-800 text-sm">Recent Payments</p></div>
-          {recentPay.length === 0 && <p className="p-4 text-sm text-slate-400 text-center">No payments yet.</p>}
-          {recentPay.map(p => { const t = tenants.find(t => t.id === p.tenantId); return (
-            <div key={p.id} className="flex items-center justify-between p-3 border-b border-slate-50 last:border-0">
-              <div><p className="text-sm font-semibold text-slate-800">{t?.name || "—"}</p><p className="text-xs text-slate-400">{fmtDate(p.date)} · {p.method}</p></div>
-              <div className="text-right"><p className="text-sm font-bold text-emerald-600">{fmtCurrency(p.amount)}</p><button onClick={() => printReceipt(p)} className="text-xs text-indigo-500 hover:underline">Receipt</button></div>
+          {/* Secondary actions — small, muted, tucked under */}
+          <div className="flex gap-3 mt-3 pt-3 border-t border-slate-100">
+            <button onClick={loadAll} className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold hover:text-slate-700"><Icon name="refresh" size={13} /> Refresh</button>
+            <button onClick={() => { setResetPwd(""); setResetErr(false); setModal({ type: "reset" }); }} className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold hover:text-rose-600 ml-auto"><Icon name="trash" size={13} /> Reset data</button>
+          </div>
+        </div>
+
+        {/* RECENT PAYMENTS — premium list with emerald amounts */}
+        <div className="bg-white rounded-[20px] shadow-sm border border-slate-100">
+          <div className="p-4 pb-3 flex items-center justify-between">
+            <p className="text-sm font-bold text-slate-800">Recent payments</p>
+            <button onClick={() => setTab("payments")} className="text-xs text-indigo-600 font-bold">See all</button>
+          </div>
+          {recentPay.length === 0 && <p className="px-4 pb-4 text-sm text-slate-400 text-center">No payments yet.</p>}
+          {recentPay.map((p, i) => { const t = tenants.find(t => t.id === p.tenantId); return (
+            <div key={p.id} className={`flex items-center justify-between px-4 py-3 ${i < recentPay.length - 1 ? "border-b border-slate-100" : "pb-4"}`}>
+              <div>
+                <p className="text-sm font-bold text-slate-800">{t?.name || "—"}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{fmtDate(p.date)} · {p.method}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-extrabold text-emerald-600">+{fmtCurrency(p.amount)}</p>
+                <button onClick={() => printReceipt(p)} className="text-[11px] text-indigo-500 font-semibold hover:underline mt-0.5">Receipt</button>
+              </div>
             </div>
           ); })}
-        </Card>
+        </div>
+
+        {/* EXPIRING LEASES — amber-tinted card */}
         {expiringLeases.length > 0 && (
-          <Card>
-            <div className="p-4 border-b border-slate-100 flex items-center gap-2"><Icon name="alert" size={16} className="text-amber-500" /><p className="font-semibold text-slate-800 text-sm">Expiring Leases</p></div>
-            {expiringLeases.map(t => { const days = Math.ceil((new Date(t.leaseEnd) - new Date()) / 86400000); return (
-              <div key={t.id} className="flex items-center justify-between p-3 border-b border-slate-50 last:border-0">
-                <div><p className="text-sm font-semibold text-slate-800">{t.name}</p><p className="text-xs text-slate-400">Expires {fmtDate(t.leaseEnd)}</p></div>
-                <span className={`text-xs font-bold px-2 py-1 rounded-full ${days < 30 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>{days}d left</span>
+          <div className="rounded-[20px] bg-gradient-to-br from-amber-50 to-white border border-amber-200 p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center"><Icon name="alert" size={14} /></div>
+              <p className="text-sm font-bold text-slate-800">Expiring leases</p>
+            </div>
+            {expiringLeases.map((t, i) => { const days = Math.ceil((new Date(t.leaseEnd) - new Date()) / 86400000); return (
+              <div key={t.id} className={`flex items-center justify-between py-2 ${i < expiringLeases.length - 1 ? "border-b border-amber-100" : ""}`}>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">{t.name}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Expires {fmtDate(t.leaseEnd)}</p>
+                </div>
+                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${days < 30 ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>{days}d left</span>
               </div>
             ); })}
-          </Card>
+          </div>
         )}
       </div>
     );
@@ -930,24 +1037,84 @@ function MainApp({ currentUser, onLogout }) {
         </div>
       );
     }
+    const owesCount = tenants.filter(t => getTenantBalance(t.id, charges, payments) > 0).length;
     return (
       <div className="space-y-4">
         <OwnerWatermark />
-        <div className="flex items-center justify-between"><div><h1 className="text-xl font-bold text-slate-800">Tenants</h1><p className="text-sm text-slate-500">{tenants.length} tenants</p></div><button onClick={() => { setTForm({}); setModal({ type: "tenant" }); }} className="flex items-center gap-1.5 bg-indigo-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold"><Icon name="plus" size={16} /> Add</button></div>
-        <div className="relative"><Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tenants…" className="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" /></div>
-        <div className="space-y-2">
-          {tenants.length === 0 && <p className="text-center text-slate-400 text-sm py-8">No tenants yet.</p>}
-          {filtered.map(t => { const prop = properties.find(p => p.id === t.propertyId); const balance = getTenantBalance(t.id, charges, payments); return (
-            <Card key={t.id} className="p-4">
-              <div className="flex items-start justify-between"><div className="min-w-0 flex-1"><p className="font-semibold text-slate-800 truncate">{t.name}</p><p className="text-xs text-slate-500 mt-0.5">{prop?.name} · {t.phone}</p><p className="text-xs text-slate-400">Lease ends {fmtDate(t.leaseEnd)}</p></div><div className="text-right ml-2"><p className={`text-sm font-bold ${balance > 0 ? "text-rose-600" : "text-emerald-600"}`}>{fmtCurrency(Math.abs(balance))}</p><p className="text-xs text-slate-400">{balance > 0 ? "due" : "credit"}</p></div></div>
-              <div className="flex gap-2 mt-3 flex-wrap">
-                <button onClick={() => setViewTenant(t)} className="flex-1 text-xs text-indigo-600 font-semibold border border-indigo-200 rounded-lg py-1.5 hover:bg-indigo-50 min-w-[60px]">View</button>
-                <button onClick={() => { setTForm({ ...t }); setModal({ type: "tenant" }); }} className="flex-1 text-xs text-slate-600 font-semibold border border-slate-200 rounded-lg py-1.5 hover:bg-slate-50 min-w-[60px]">Edit</button>
-                <button onClick={() => printSOA(t)} className="flex-1 text-xs text-slate-600 font-semibold border border-slate-200 rounded-lg py-1.5 hover:bg-slate-50 min-w-[50px]">SOA</button>
-                <button onClick={() => { setSoaModal({ tenant: t }); setSoaPeriod(today().slice(0, 7)); }} className="flex-1 text-xs text-emerald-700 font-semibold border border-emerald-200 rounded-lg py-1.5 hover:bg-emerald-50 min-w-[80px]">Monthly SOA</button>
+        {/* Page header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-[22px] font-extrabold text-slate-800 tracking-tight">Tenants</h1>
+            <p className="text-xs text-slate-500 mt-0.5 font-medium">{tenants.length} tenants{owesCount > 0 ? ` · ${owesCount} owes` : ""}</p>
+          </div>
+          <button onClick={() => { setTForm({}); setModal({ type: "tenant" }); }} className="flex items-center gap-1.5 bg-indigo-600 text-white rounded-[13px] px-3.5 py-2.5 text-[13px] font-bold hover:bg-indigo-700 active:scale-[0.98] transition-all shadow-[0_8px_18px_-10px_rgba(67,56,202,0.55)]">
+            <Icon name="plus" size={15} /> Add
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Icon name="search" size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tenants…" className="w-full border border-slate-200 rounded-2xl pl-10 pr-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        </div>
+
+        {/* Tenant cards — avatar tiles + semantic balance */}
+        <div className="space-y-3">
+          {tenants.length === 0 && (
+            <div className="rounded-[20px] bg-white border border-dashed border-slate-200 p-8 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mx-auto mb-3"><Icon name="users" size={22} /></div>
+              <p className="text-sm font-bold text-slate-700">No tenants yet</p>
+              <p className="text-xs text-slate-400 mt-1">Add your first tenant to start tracking rent and payments.</p>
+            </div>
+          )}
+          {filtered.map(t => {
+            const prop = properties.find(p => p.id === t.propertyId);
+            const balance = getTenantBalance(t.id, charges, payments);
+            const initials = (t.name || "?").split(" ").map(s => s[0]).slice(0, 2).join("").toUpperCase();
+            const daysToLease = t.leaseEnd ? Math.ceil((new Date(t.leaseEnd) - new Date()) / 86400000) : null;
+            const balColor   = balance > 0 ? "text-rose-600" : balance < 0 ? "text-emerald-600" : "text-slate-600";
+            const balLabel   = balance > 0 ? "due" : balance < 0 ? "credit" : "settled";
+            return (
+              <div key={t.id} className="bg-white rounded-[20px] p-4 shadow-sm border border-slate-100">
+                {/* Top row: avatar + name + balance */}
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-[15px] bg-indigo-50 text-indigo-600 flex items-center justify-center font-extrabold text-sm flex-shrink-0">
+                    {initials}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-base font-bold text-slate-800 truncate leading-tight">{t.name}</p>
+                    <p className="text-[12px] text-slate-500 mt-0.5 truncate">{prop?.name || "—"} · {t.phone || "—"}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className={`text-base font-extrabold ${balColor} tracking-tight`}>{fmtCurrency(Math.abs(balance))}</p>
+                    <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">{balLabel}</p>
+                  </div>
+                </div>
+
+                {/* Meta row: lease end with icon */}
+                {t.leaseEnd && (
+                  <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-500">
+                    <Icon name="calendar" size={12} className="text-slate-400" />
+                    <span>Lease ends {fmtDate(t.leaseEnd)}</span>
+                    {daysToLease !== null && daysToLease > 0 && daysToLease < 365 && (
+                      <span className="text-slate-400">· {daysToLease}d left</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Divider */}
+                <div className="border-t border-slate-100 mt-3 pt-3" />
+
+                {/* Action row */}
+                <div className="flex gap-2">
+                  <button onClick={() => setViewTenant(t)} className="flex-1 text-[13px] text-indigo-700 font-bold bg-indigo-50 rounded-xl py-2 hover:bg-indigo-100 active:scale-[0.98] transition-all">View</button>
+                  <button onClick={() => { setTForm({ ...t }); setModal({ type: "tenant" }); }} className="flex-1 text-[13px] text-slate-700 font-bold border border-slate-200 rounded-xl py-2 hover:bg-slate-50 active:scale-[0.98] transition-all">Edit</button>
+                  <button onClick={() => printSOA(t)} className="flex-1 text-[13px] text-slate-700 font-bold border border-slate-200 rounded-xl py-2 hover:bg-slate-50 active:scale-[0.98] transition-all">SOA</button>
+                  <button onClick={() => { setSoaModal({ tenant: t }); setSoaPeriod(today().slice(0, 7)); }} className="text-[13px] text-emerald-700 font-bold bg-emerald-50 rounded-xl py-2 px-3 hover:bg-emerald-100 active:scale-[0.98] transition-all whitespace-nowrap" style={{ flex: "1.4" }}>Monthly SOA</button>
+                </div>
               </div>
-            </Card>
-          ); })}
+            );
+          })}
         </div>
       </div>
     );
@@ -956,20 +1123,85 @@ function MainApp({ currentUser, onLogout }) {
   const PropertiesView = () => {
     const [filter, setFilter] = useState("All");
     const filtered = filter === "All" ? properties : properties.filter(p => p.status === filter);
+    const occupiedCount = properties.filter(p => p.status === "Occupied").length;
     return (
       <div className="space-y-4">
         <OwnerWatermark />
-        <div className="flex items-center justify-between"><div><h1 className="text-xl font-bold text-slate-800">Properties</h1><p className="text-sm text-slate-500">{properties.length} units</p></div><button onClick={() => { setPForm({}); setModal({ type: "property" }); }} className="flex items-center gap-1.5 bg-indigo-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold"><Icon name="plus" size={16} /> Add</button></div>
-        <div className="flex gap-2 overflow-x-auto pb-1">{["All","Occupied","Vacant","Reserved","Under Maintenance"].map(s => <button key={s} onClick={() => setFilter(s)} className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${filter === s ? "bg-indigo-600 text-white" : "bg-white border border-slate-200 text-slate-600"}`}>{s}</button>)}</div>
+        {/* Page header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-[22px] font-extrabold text-slate-800 tracking-tight">Properties</h1>
+            <p className="text-xs text-slate-500 mt-0.5 font-medium">{properties.length} units · {occupiedCount} occupied</p>
+          </div>
+          <button onClick={() => { setPForm({}); setModal({ type: "property" }); }} className="flex items-center gap-1.5 bg-indigo-600 text-white rounded-[13px] px-3.5 py-2.5 text-[13px] font-bold hover:bg-indigo-700 active:scale-[0.98] transition-all shadow-[0_8px_18px_-10px_rgba(67,56,202,0.55)]">
+            <Icon name="plus" size={15} /> Add
+          </button>
+        </div>
+
+        {/* Filter pills */}
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          {["All","Occupied","Vacant","Reserved","Under Maintenance"].map(s => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
+                filter === s
+                  ? "bg-indigo-600 text-white shadow-[0_6px_14px_-8px_rgba(67,56,202,0.7)]"
+                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >{s}</button>
+          ))}
+        </div>
+
+        {/* Property cards */}
         <div className="grid gap-3">
-          {properties.length === 0 && <p className="text-center text-slate-400 text-sm py-8">No units yet.</p>}
-          {filtered.map(p => { const tenant = tenants.find(t => t.propertyId === p.id); return (
-            <Card key={p.id} className="p-4">
-              <div className="flex items-start justify-between mb-2"><div><p className="font-semibold text-slate-800">{p.name}</p><p className="text-xs text-slate-500">{p.building} · Unit {p.unit} · {p.floor} sqm</p>{p.parking && <p className="text-xs text-slate-400">Parking: {p.parking}</p>}</div><StatusBadge status={p.status} /></div>
-              {tenant && <div className="bg-slate-50 rounded-xl p-3 mt-2"><p className="text-xs font-semibold text-slate-700">{tenant.name}</p><p className="text-xs text-slate-500">Lease ends {fmtDate(tenant.leaseEnd)} · {fmtCurrency(tenant.monthlyRent)}/mo</p></div>}
-              <button onClick={() => { setPForm({ ...p }); setModal({ type: "property" }); }} className="mt-3 w-full text-xs text-slate-600 font-semibold border border-slate-200 rounded-lg py-1.5 hover:bg-slate-50">Edit</button>
-            </Card>
-          ); })}
+          {properties.length === 0 && (
+            <div className="rounded-[20px] bg-white border border-dashed border-slate-200 p-8 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mx-auto mb-3"><Icon name="building" size={22} /></div>
+              <p className="text-sm font-bold text-slate-700">No units yet</p>
+              <p className="text-xs text-slate-400 mt-1">Add a unit to start tracking its tenants and rent.</p>
+            </div>
+          )}
+          {filtered.map(p => {
+            const tenant = tenants.find(t => t.propertyId === p.id);
+            return (
+              <div key={p.id} className="bg-white rounded-[20px] p-4 shadow-sm border border-slate-100">
+                {/* Top row: icon + name + status */}
+                <div className="flex items-start gap-3">
+                  <div className="w-[42px] h-[42px] rounded-[13px] bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                    <Icon name="building" size={18} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-base font-bold text-slate-800 leading-tight">{p.name}</p>
+                    <p className="text-[12px] text-slate-500 mt-0.5">{p.building} · Unit {p.unit}{p.floor ? ` · ${p.floor} sqm` : ""}</p>
+                    {p.parking && <p className="text-[11px] text-slate-400 mt-0.5">Parking: {p.parking}</p>}
+                  </div>
+                  <StatusBadge status={p.status} />
+                </div>
+
+                {/* Tenant sub-block (occupied) */}
+                {tenant && (
+                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 mt-3">
+                    <p className="text-[13px] font-bold text-slate-800">{tenant.name}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Lease ends {fmtDate(tenant.leaseEnd)} · <span className="text-slate-700 font-semibold">{fmtCurrency(tenant.monthlyRent)}/mo</span></p>
+                  </div>
+                )}
+
+                {/* Vacant empty-state */}
+                {!tenant && p.status === "Vacant" && (
+                  <div className="border border-dashed border-amber-200 bg-amber-50 rounded-2xl p-3 mt-3 flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0"><Icon name="plus" size={14} /></div>
+                    <p className="text-xs text-amber-700 font-semibold leading-snug">No tenant assigned — add one to start billing</p>
+                  </div>
+                )}
+
+                {/* Edit button */}
+                <button onClick={() => { setPForm({ ...p }); setModal({ type: "property" }); }} className="mt-3 w-full text-[13px] text-slate-700 font-bold border border-slate-200 rounded-xl py-2 hover:bg-slate-50 active:scale-[0.98] transition-all">
+                  Edit unit
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -996,25 +1228,80 @@ function MainApp({ currentUser, onLogout }) {
       setSyncing(false);
     };
 
+    // Collected this current month
+    const currentMonth = today().slice(0, 7);
+    const monthPayments = payments.filter(p => (p.date || "").slice(0, 7) === currentMonth);
+    const monthCollected = monthPayments.reduce((s, p) => s + Number(p.amount), 0);
+    const monthLabel = new Date().toLocaleString("en-PH", { month: "long" });
+
     return (
       <div className="space-y-4">
         <OwnerWatermark />
-        <div className="flex items-center justify-between"><div><h1 className="text-xl font-bold text-slate-800">Payments</h1><p className="text-sm text-slate-500">{payments.length} transactions</p></div><button onClick={() => setModal({ type: "payment" })} className="flex items-center gap-1.5 bg-indigo-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold"><Icon name="plus" size={16} /> Record</button></div>
-        <div className="relative"><Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" className="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" /></div>
-        <div className="space-y-2">
-          {payments.length === 0 && <p className="text-center text-slate-400 text-sm py-8">No payments yet.</p>}
-          {filtered.map(p => { const t = tenants.find(t => t.id === p.tenantId); return (
-            <Card key={p.id} className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="min-w-0 flex-1"><p className="font-semibold text-slate-800 truncate">{t?.name || "—"}</p><p className="text-xs text-slate-500">{fmtDate(p.date)} · {p.method}</p>{p.reference && <p className="text-xs text-slate-400">Ref: {p.reference}</p>}{p.notes && <p className="text-xs text-slate-400 italic">{p.notes}</p>}</div>
-                <div className="text-right ml-2 flex-shrink-0"><p className="text-base font-bold text-emerald-600">{fmtCurrency(p.amount)}</p><button onClick={() => printReceipt(p)} className="text-xs text-indigo-500 hover:underline block">Print OR</button></div>
+        {/* Page header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-[22px] font-extrabold text-slate-800 tracking-tight">Payments</h1>
+            <p className="text-xs text-slate-500 mt-0.5 font-medium">{payments.length} transactions</p>
+          </div>
+          <button onClick={() => setModal({ type: "payment" })} className="flex items-center gap-1.5 bg-indigo-600 text-white rounded-[13px] px-3.5 py-2.5 text-[13px] font-bold hover:bg-indigo-700 active:scale-[0.98] transition-all shadow-[0_8px_18px_-10px_rgba(67,56,202,0.55)]">
+            <Icon name="plus" size={15} /> Record
+          </button>
+        </div>
+
+        {/* Premium summary strip — gradient with collected number front and center */}
+        <div className="rounded-[18px] p-4 text-white bg-gradient-to-br from-indigo-800 to-indigo-500 shadow-[0_12px_26px_-14px_rgba(67,56,202,0.6)] flex items-end justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-white/65">Collected in {monthLabel}</p>
+            <p className="text-[26px] font-extrabold tracking-tight leading-tight mt-1">{fmtCurrency(monthCollected)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-extrabold leading-none">{monthPayments.length}</p>
+            <p className="text-[11px] text-white/70 font-semibold mt-1">payments</p>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Icon name="search" size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by tenant or reference…" className="w-full border border-slate-200 rounded-2xl pl-10 pr-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        </div>
+
+        {/* Payment cards */}
+        <div className="space-y-3">
+          {payments.length === 0 && (
+            <div className="rounded-[20px] bg-white border border-dashed border-slate-200 p-8 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3"><Icon name="wallet" size={22} /></div>
+              <p className="text-sm font-bold text-slate-700">No payments yet</p>
+              <p className="text-xs text-slate-400 mt-1">Record a payment to see it appear here.</p>
+            </div>
+          )}
+          {filtered.map(p => {
+            const t = tenants.find(t => t.id === p.tenantId);
+            return (
+              <div key={p.id} className="bg-white rounded-[20px] p-4 shadow-sm border border-slate-100">
+                {/* Top row: wallet chip + tenant + amount */}
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-[15px] bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                    <Icon name="wallet" size={19} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-base font-bold text-slate-800 truncate leading-tight">{t?.name || "—"}</p>
+                    <p className="text-[12px] text-slate-500 mt-0.5">{fmtDate(p.date)} · {p.method}</p>
+                    {p.reference && <p className="text-[11px] text-slate-400 mt-0.5">Ref: <span className="text-slate-500 font-mono">{p.reference}</span></p>}
+                    {p.notes && <p className="text-[11px] text-slate-400 italic mt-0.5">{p.notes}</p>}
+                  </div>
+                  <p className="text-lg font-extrabold text-emerald-600 tracking-tight flex-shrink-0">+{fmtCurrency(p.amount)}</p>
+                </div>
+
+                {/* Action row */}
+                <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+                  <button onClick={() => printReceipt(p)} className="flex-1 text-[13px] text-indigo-700 font-bold bg-indigo-50 rounded-xl py-2 hover:bg-indigo-100 active:scale-[0.98] transition-all">Receipt</button>
+                  <button onClick={() => setEditPay({ ...p })} className="flex-1 text-[13px] text-slate-700 font-bold border border-slate-200 rounded-xl py-2 hover:bg-slate-50 active:scale-[0.98] transition-all">Edit</button>
+                  <button onClick={() => deletePayment(p)} className="flex-1 text-[13px] text-rose-600 font-bold border border-rose-200 rounded-xl py-2 hover:bg-rose-50 active:scale-[0.98] transition-all">Delete</button>
+                </div>
               </div>
-              <div className="flex gap-2 mt-3">
-                <button onClick={() => setEditPay({ ...p })} className="flex-1 text-xs text-indigo-600 font-semibold border border-indigo-200 rounded-lg py-1.5 hover:bg-indigo-50">Edit</button>
-                <button onClick={() => deletePayment(p)} className="flex-1 text-xs text-rose-500 font-semibold border border-rose-200 rounded-lg py-1.5 hover:bg-rose-50">Delete</button>
-              </div>
-            </Card>
-          ); })}
+            );
+          })}
         </div>
 
         {editPay && (
@@ -1146,108 +1433,216 @@ function MainApp({ currentUser, onLogout }) {
       );
     };
 
+    // 6-month revenue trend for chart
+    const last6Months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const k = d.toISOString().slice(0, 7);
+      const lbl = d.toLocaleString("en-PH", { month: "short" });
+      const sum = payments.filter(p => (p.date || "").slice(0, 7) === k).reduce((s, p) => s + Number(p.amount), 0);
+      last6Months.push({ key: k, label: lbl, value: sum });
+    }
+    const maxMonth = Math.max(...last6Months.map(m => m.value), 1);
+    const collectionPct = totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 0;
+    const currentYear   = new Date().getFullYear();
+
     return (
       <div className="space-y-4">
         <OwnerWatermark />
-        <div><h1 className="text-xl font-bold text-slate-800">Reports</h1><p className="text-sm text-slate-500">Financial summary</p></div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard label="Total Collected" value={fmtCurrency(totalCollected)} icon="wallet"   color="emerald" />
-          <StatCard label="Total Billed"    value={fmtCurrency(totalBilled)}    icon="receipt"  color="blue" />
-          <StatCard label="Outstanding"     value={fmtCurrency(outstanding)}    icon="alert"    color="rose" />
-          <StatCard label="Collection Rate" value={totalBilled ? Math.round(totalCollected / totalBilled * 100) + "%" : "—"} icon="trending" color="indigo" />
+        {/* Page header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-[22px] font-extrabold text-slate-800 tracking-tight">Reports</h1>
+            <p className="text-xs text-slate-500 mt-0.5 font-medium">Financial summary · YTD</p>
+          </div>
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-[13px] px-3 py-2 text-[13px] font-bold text-slate-700">
+            <Icon name="calendar" size={13} className="text-slate-400" /> {currentYear}
+          </div>
         </div>
 
-        {/* Tenant Balances */}
-        <Card>
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-            <p className="font-semibold text-slate-800 text-sm">Tenant Balances</p>
+        {/* ── DARK COLLECTIONS PANEL — executive moment ── */}
+        <div className="bg-slate-900 rounded-[22px] p-5 text-white shadow-[0_14px_30px_-14px_rgba(15,23,42,0.6)]">
+          <div className="flex items-start justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-white/55">Collected YTD</p>
+            <p className="text-sm font-extrabold text-emerald-400 tracking-tight">{collectionPct}%</p>
           </div>
-          {tenants.length === 0 && <p className="p-4 text-sm text-slate-400 text-center">No tenants.</p>}
-          {tenants.map(t => { const balance = getTenantBalance(t.id, charges, payments); const prop = properties.find(p => p.id === t.propertyId); return (
-            <div key={t.id} className="flex items-center justify-between p-3 border-b border-slate-50 last:border-0">
-              <div><p className="text-sm font-semibold text-slate-800">{t.name}</p><p className="text-xs text-slate-400">{prop?.name}</p></div>
-              <p className={"text-sm font-bold " + (balance > 0 ? "text-rose-600" : "text-emerald-600")}>{fmtCurrency(balance)}</p>
-            </div>
-          ); })}
-          <div className="p-3">
-            <PrintDownloadBtns buildHtml={buildOutstandingHtml} filename="Outstanding-Balances" color="rose" />
+          <p className="text-[32px] font-extrabold tracking-tight leading-none mt-2">
+            {fmtCurrency(totalCollected).split(".")[0]}
+            <span className="text-[15px] text-white/45 font-bold ml-1">/ {fmtCurrency(totalBilled).split(".")[0]}</span>
+          </p>
+
+          {/* Progress bar */}
+          <div className="h-2 rounded-full bg-white/[0.12] mt-4 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all"
+              style={{ width: collectionPct + "%" }}
+            />
           </div>
-        </Card>
 
-        {/* Payments by Method */}
-        <Card>
-          <div className="p-4 border-b border-slate-100"><p className="font-semibold text-slate-800 text-sm">Payments by Method</p></div>
-          {Object.keys(byMethod).length === 0 && <p className="p-4 text-sm text-slate-400 text-center">No payments yet.</p>}
-          {Object.entries(byMethod).map(([m, v]) => (
-            <div key={m} className="flex items-center justify-between p-3 border-b border-slate-50 last:border-0">
-              <p className="text-sm text-slate-700 font-medium">{m}</p>
-              <p className="text-sm font-bold text-slate-800">{fmtCurrency(v)}</p>
+          {/* 3-column footer */}
+          <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-white/[0.08]">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Billed</p>
+              <p className="text-sm font-extrabold mt-1 tracking-tight">{fmtCurrency(totalBilled).replace(".00", "")}</p>
             </div>
-          ))}
-        </Card>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Collected</p>
+              <p className="text-sm font-extrabold mt-1 tracking-tight text-emerald-400">{fmtCurrency(totalCollected).replace(".00", "")}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Outstanding</p>
+              <p className="text-sm font-extrabold mt-1 tracking-tight text-rose-400">{fmtCurrency(outstanding).replace(".00", "")}</p>
+            </div>
+          </div>
+        </div>
 
-        {/* Income Report */}
-        <Card className="p-4">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Income Report</p>
-          <Field label="Filter by Unit">
+        {/* ── 6-MONTH REVENUE BAR CHART ── */}
+        <div className="bg-white rounded-[20px] p-4 shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-bold text-slate-800">Revenue · last 6 months</p>
+            <Icon name="trending" size={14} className="text-slate-400" />
+          </div>
+          <div className="flex items-end justify-between gap-2 h-28">
+            {last6Months.map((m, i) => {
+              const isLast = i === last6Months.length - 1;
+              const pct = maxMonth ? Math.max(8, (m.value / maxMonth) * 100) : 8;
+              return (
+                <div key={m.key} className="flex-1 flex flex-col items-center justify-end h-full">
+                  <div
+                    className={`w-full rounded-t-lg ${isLast ? "bg-indigo-600" : "bg-indigo-100"} transition-all`}
+                    style={{ height: pct + "%" }}
+                    title={fmtCurrency(m.value)}
+                  />
+                  <p className={`text-[10px] font-bold mt-1.5 ${isLast ? "text-indigo-700" : "text-slate-400"}`}>{m.label}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── PAYMENTS BY METHOD ── */}
+        {Object.keys(byMethod).length > 0 && (
+          <div className="bg-white rounded-[20px] shadow-sm border border-slate-100">
+            <div className="p-4 pb-3"><p className="text-sm font-bold text-slate-800">Payments by method</p></div>
+            {Object.entries(byMethod).map(([m, v], i, arr) => (
+              <div key={m} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-slate-100" : "pb-4"}`}>
+                <p className="text-[13px] text-slate-700 font-semibold">{m}</p>
+                <p className="text-[13px] font-extrabold text-slate-800">{fmtCurrency(v)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── TENANT BALANCES ── */}
+        <div className="bg-white rounded-[20px] shadow-sm border border-slate-100">
+          <div className="p-4 pb-3 flex items-center justify-between">
+            <p className="text-sm font-bold text-slate-800">Tenant balances</p>
+            <p className="text-xs text-slate-400 font-semibold">{tenants.length}</p>
+          </div>
+          {tenants.length === 0 && <p className="px-4 pb-4 text-sm text-slate-400 text-center">No tenants.</p>}
+          {tenants.map((t, i, arr) => {
+            const balance = getTenantBalance(t.id, charges, payments);
+            const prop = properties.find(p => p.id === t.propertyId);
+            const balColor = balance > 0 ? "text-rose-600" : balance < 0 ? "text-emerald-600" : "text-slate-600";
+            return (
+              <div key={t.id} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-slate-100" : ""}`}>
+                <div>
+                  <p className="text-[13px] font-bold text-slate-800">{t.name}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{prop?.name || "—"}</p>
+                </div>
+                <p className={`text-[13px] font-extrabold tracking-tight ${balColor}`}>{fmtCurrency(balance)}</p>
+              </div>
+            );
+          })}
+          <div className="p-4 pt-3 flex gap-2 border-t border-slate-100">
+            <button onClick={() => printHTML(buildOutstandingHtml(), "Outstanding-Balances")} className="flex-1 flex items-center justify-center gap-1.5 border border-slate-200 text-slate-700 rounded-xl py-2 text-[13px] font-bold hover:bg-slate-50 active:scale-[0.98] transition-all">
+              <Icon name="receipt" size={13} /> Print
+            </button>
+            <button onClick={() => downloadHTML(buildOutstandingHtml(), "Outstanding-Balances")} className="flex-1 flex items-center justify-center gap-1.5 border border-slate-200 text-slate-700 rounded-xl py-2 text-[13px] font-bold hover:bg-slate-50 active:scale-[0.98] transition-all">
+              <Icon name="download" size={13} /> Download
+            </button>
+          </div>
+        </div>
+
+        {/* ── INCOME REPORT — form-as-data-block style ── */}
+        <div className="bg-white rounded-[20px] p-4 shadow-sm border border-slate-100">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">Income report</p>
+          <div className="mb-3">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Filter by unit</label>
             <AppSelect value={incomeUnit} onChange={e => setIncomeUnit(e.target.value)}>
               <option value="all">All Units</option>
               {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </AppSelect>
-          </Field>
-          <PrintDownloadBtns buildHtml={buildIncomeHtml} filename={"Income-Report-" + (incomeUnit === "all" ? "All" : (properties.find(p=>p.id===incomeUnit)?.unit||incomeUnit))} color="indigo" />
-        </Card>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => printHTML(buildIncomeHtml(), "Income-Report")} className="flex-1 flex items-center justify-center gap-1.5 bg-indigo-600 text-white rounded-xl py-2.5 text-[13px] font-bold hover:bg-indigo-700 active:scale-[0.98] transition-all shadow-[0_8px_18px_-10px_rgba(67,56,202,0.55)]">
+              <Icon name="receipt" size={13} /> Print
+            </button>
+            <button onClick={() => downloadHTML(buildIncomeHtml(), "Income-Report-" + (incomeUnit === "all" ? "All" : (properties.find(p=>p.id===incomeUnit)?.unit||incomeUnit)))} className="flex-1 flex items-center justify-center gap-1.5 bg-indigo-50 text-indigo-700 rounded-xl py-2.5 text-[13px] font-bold hover:bg-indigo-100 active:scale-[0.98] transition-all">
+              <Icon name="download" size={13} /> Download
+            </button>
+          </div>
+        </div>
 
-        {/* Monthly Ledger */}
-        <Card className="p-4">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Monthly Ledger</p>
-          <Field label="Period">
-            <Input type="month" value={ledgerPeriod} onChange={e => setLedgerPeriod(e.target.value)} />
-          </Field>
-          <Field label="Filter by Unit">
-            <AppSelect value={ledgerUnit} onChange={e => setLedgerUnit(e.target.value)}>
-              <option value="all">All Units</option>
-              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </AppSelect>
-          </Field>
-          <PrintDownloadBtns
-            buildHtml={() => {
-              const filtered = ledgerUnit === "all" ? tenants : tenants.filter(t => t.propertyId === ledgerUnit);
-              const r = printMonthlyLedger(ledgerPeriod, ledgerUnit === "all" ? null : ledgerUnit);
-              return r ? r.html : "<p>No data</p>";
-            }}
-            filename={"Monthly-Ledger-" + ledgerPeriod + (ledgerUnit !== "all" ? "-" + (properties.find(p=>p.id===ledgerUnit)?.unit||"") : "")}
-            color="emerald"
-          />
-        </Card>
+        {/* ── MONTHLY LEDGER ── */}
+        <div className="bg-white rounded-[20px] p-4 shadow-sm border border-slate-100">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">Monthly ledger</p>
+          <div className="space-y-2.5 mb-3">
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Period</label>
+              <Input type="month" value={ledgerPeriod} onChange={e => setLedgerPeriod(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Filter by unit</label>
+              <AppSelect value={ledgerUnit} onChange={e => setLedgerUnit(e.target.value)}>
+                <option value="all">All Units</option>
+                {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </AppSelect>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => { const r = printMonthlyLedger(ledgerPeriod, ledgerUnit === "all" ? null : ledgerUnit); if (r) printHTML(r.html, r.title); }} className="flex-1 flex items-center justify-center gap-1.5 bg-indigo-600 text-white rounded-xl py-2.5 text-[13px] font-bold hover:bg-indigo-700 active:scale-[0.98] transition-all shadow-[0_8px_18px_-10px_rgba(67,56,202,0.55)]">
+              <Icon name="receipt" size={13} /> Print
+            </button>
+            <button onClick={() => { const r = printMonthlyLedger(ledgerPeriod, ledgerUnit === "all" ? null : ledgerUnit); if (r) downloadHTML(r.html, "Monthly-Ledger-" + ledgerPeriod); }} className="flex-1 flex items-center justify-center gap-1.5 bg-indigo-50 text-indigo-700 rounded-xl py-2.5 text-[13px] font-bold hover:bg-indigo-100 active:scale-[0.98] transition-all">
+              <Icon name="download" size={13} /> Download
+            </button>
+          </div>
+        </div>
 
-        {/* SOA per tenant */}
-        <Card className="p-4">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Statement of Account (SOA)</p>
+        {/* ── SOA per tenant ── */}
+        <div className="bg-white rounded-[20px] p-4 shadow-sm border border-slate-100">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">Statement of Account</p>
           <div className="space-y-2">
             {tenants.length === 0 && <p className="text-sm text-slate-400 text-center py-2">No tenants yet.</p>}
             {tenants.map(t => {
               const prop = properties.find(p => p.id === t.propertyId);
+              const balance = getTenantBalance(t.id, charges, payments);
               return (
-                <div key={t.id} className="border border-slate-200 rounded-xl p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div><p className="text-sm font-semibold text-slate-800">{t.name}</p><p className="text-xs text-slate-400">{prop?.name}</p></div>
-                    <span className={"text-xs font-bold px-2 py-0.5 rounded-full " + (getTenantBalance(t.id,charges,payments) > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700")}>{fmtCurrency(Math.abs(getTenantBalance(t.id,charges,payments)))}</span>
+                <div key={t.id} className="border border-slate-200 rounded-2xl p-3">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div>
+                      <p className="text-[13px] font-bold text-slate-800">{t.name}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{prop?.name}</p>
+                    </div>
+                    <span className={"text-[11px] font-bold px-2.5 py-0.5 rounded-full " + (balance > 0 ? "bg-rose-100 text-rose-700" : balance < 0 ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600")}>
+                      {fmtCurrency(Math.abs(balance))}
+                    </span>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => printSOA(t)} className="flex-1 flex items-center justify-center gap-1.5 border border-emerald-200 text-emerald-700 rounded-lg py-1.5 text-xs font-semibold hover:bg-emerald-50">
-                      <Icon name="receipt" size={13} /> Print SOA
+                    <button onClick={() => printSOA(t)} className="flex-1 flex items-center justify-center gap-1.5 border border-emerald-200 text-emerald-700 rounded-xl py-1.5 text-xs font-bold hover:bg-emerald-50 active:scale-[0.98] transition-all">
+                      <Icon name="receipt" size={12} /> Print
                     </button>
-                    <button onClick={() => { const soaHtml2 = buildSOAHtml(t); downloadHTML(soaHtml2, "SOA-" + t.name.replace(/ /g,"-")); }} className="flex-1 flex items-center justify-center gap-1.5 border border-emerald-200 text-emerald-700 rounded-lg py-1.5 text-xs font-semibold hover:bg-emerald-50">
-                      <Icon name="download" size={13} /> Download SOA
+                    <button onClick={() => { const soaHtml2 = buildSOAHtml(t); downloadHTML(soaHtml2, "SOA-" + t.name.replace(/ /g,"-")); }} className="flex-1 flex items-center justify-center gap-1.5 border border-emerald-200 text-emerald-700 rounded-xl py-1.5 text-xs font-bold hover:bg-emerald-50 active:scale-[0.98] transition-all">
+                      <Icon name="download" size={12} /> Download
                     </button>
                   </div>
                 </div>
               );
             })}
           </div>
-        </Card>
+        </div>
       </div>
     );
   };
@@ -1287,9 +1682,18 @@ function MainApp({ currentUser, onLogout }) {
         {tab === "reports"     && <ReportsView />}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-100 shadow-lg">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-100 shadow-lg">
         <div className="max-w-2xl mx-auto flex">
-          {navItems.map(n => (<button key={n.id} onClick={() => setTab(n.id)} className={`flex-1 flex flex-col items-center gap-1 py-2.5 transition-colors ${tab === n.id ? "text-indigo-600" : "text-slate-400"}`}><Icon name={n.icon} size={tab === n.id ? 22 : 20} /><span className="text-[10px] font-semibold">{n.label}</span></button>))}
+          {navItems.map(n => (
+            <button
+              key={n.id}
+              onClick={() => setTab(n.id)}
+              className={`flex-1 flex flex-col items-center gap-1 py-2.5 transition-colors active:scale-[0.96] ${tab === n.id ? "text-indigo-600" : "text-slate-400 hover:text-slate-600"}`}
+            >
+              <Icon name={n.icon} size={21} />
+              <span className={`text-[10px] ${tab === n.id ? "font-bold" : "font-semibold"}`}>{n.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
