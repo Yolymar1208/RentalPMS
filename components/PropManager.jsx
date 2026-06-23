@@ -250,7 +250,7 @@ const OwnerWatermark = () => <p className="text-xs text-slate-200 font-semibold 
 // ═══════════════════════════════════════════════════════════════════════════════
 const AuthScreen = ({ onLogin }) => {
   const [mode, setMode] = useState("signin");
-  const [form, setForm] = useState({ name: "", email: "", password: "", code: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", code: "", gcashRef: "" });
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -273,6 +273,7 @@ const AuthScreen = ({ onLogin }) => {
 
   const handleSignUp = async () => {
     if (!form.name || !form.email || !form.password || !form.code) return setError("Please fill in all fields.");
+    if (!form.gcashRef.trim()) return setError("Please enter your GCash reference number.");
     if (form.password.length < 6) return setError("Password must be at least 6 characters.");
     setLoading(true);
     try {
@@ -282,7 +283,7 @@ const AuthScreen = ({ onLogin }) => {
       const { data: existing } = await api("app_users", "GET", null, `?email=eq.${encodeURIComponent(form.email.toLowerCase())}&select=id`);
       if (existing && existing.length > 0) { setError("An account with this email already exists."); return; }
       const userId = uid("USR");
-      const { ok } = await api("app_users", "POST", [{ id: userId, name: form.name, email: form.email.toLowerCase(), password: form.password, invite_code: form.code.toUpperCase() }]);
+      const { ok } = await api("app_users", "POST", [{ id: userId, name: form.name, email: form.email.toLowerCase(), password: form.password, invite_code: form.code.toUpperCase(), gcash_ref: form.gcashRef.trim() }]);
       if (!ok) { setError("Something went wrong. Please try again."); return; }
       await api("invite_codes", "PATCH", { used_by: form.email.toLowerCase(), used_at: new Date().toISOString() }, `?code=eq.${encodeURIComponent(form.code.toUpperCase())}`);
       const userData = { id: userId, name: form.name, email: form.email.toLowerCase(), inviteCode: form.code.toUpperCase() };
@@ -360,14 +361,64 @@ const AuthScreen = ({ onLogin }) => {
               </div>
             </div>
             {mode === "signup" && (
-              <div>
-                <label className={labelCls}>Invite Code</label>
-                <div className="relative">
-                  <Icon name="key" size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="PROP-XXXX-YOLY" className={inputCls + " font-mono tracking-widest"} />
+              <>
+                {/* ── STEP 1: PAY VIA GCASH ── */}
+                <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-xs font-black">G</span>
+                    </div>
+                    <div>
+                      <p className="text-[13px] font-bold text-slate-800">Step 1 — Pay via GCash</p>
+                      <p className="text-[11px] text-slate-500">Send payment to get your invite code</p>
+                    </div>
+                  </div>
+
+                  {/* GCash number */}
+                  <div className="bg-white rounded-xl p-3 border border-blue-100 flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">GCash Number</p>
+                      <p className="text-[17px] font-extrabold text-slate-800 tracking-tight mt-0.5">0905 405 8556</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Yoly G. · EULA RentalPMS</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Amount</p>
+                      <p className="text-[17px] font-extrabold text-blue-600 tracking-tight mt-0.5">₱1999</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">one-time</p>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    After sending payment, screenshot your GCash confirmation. You will receive your invite code via SMS or chat. Then proceed to Step 2 and 3 below.
+                  </p>
                 </div>
-                <p className="text-xs text-slate-400 mt-1.5">You need an invite code from Yoly to sign up.</p>
-              </div>
+
+                {/* ── STEP 2: GCASH REFERENCE NUMBER ── */}
+                <div>
+                  <label className={labelCls}>Step 2 — GCash Reference No.</label>
+                  <div className="relative">
+                    <Icon name="receipt" size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={form.gcashRef}
+                      onChange={e => set("gcashRef", e.target.value.replace(/\D/g, ""))}
+                      placeholder="e.g. 1234567890123"
+                      maxLength={20}
+                      className={inputCls + " font-mono tracking-wider"}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1.5">Found in your GCash app under Send Money → Transaction Details.</p>
+                </div>
+
+                {/* ── STEP 3: INVITE CODE ── */}
+                <div>
+                  <label className={labelCls}>Step 3 — Invite Code</label>
+                  <div className="relative">
+                    <Icon name="key" size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="PROP-XXXX-YOLY" className={inputCls + " font-mono tracking-widest"} />
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1.5">Sent to you by Yoly after payment is verified.</p>
+                </div>
+              </>
             )}
             {error && (
               <div className="bg-rose-50 border border-rose-200 rounded-2xl px-3.5 py-3 flex items-center gap-2">
