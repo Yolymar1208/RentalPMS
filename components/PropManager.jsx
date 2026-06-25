@@ -469,12 +469,12 @@ const AuthScreen = ({ onLogin }) => {
                   <div className="bg-white rounded-xl p-3 border border-blue-100 flex items-center justify-between mb-2">
                     <div>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">GCash Number</p>
-                      <p className="text-[17px] font-extrabold text-slate-800 tracking-tight mt-0.5">0917 XXX XXXX</p>
+                      <p className="text-[17px] font-extrabold text-slate-800 tracking-tight mt-0.5">0905 405 8556</p>
                       <p className="text-[11px] text-slate-500 mt-0.5">Yoly G. · EULA RentalPMS</p>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Amount</p>
-                      <p className="text-[17px] font-extrabold text-blue-600 tracking-tight mt-0.5">₱XXX</p>
+                      <p className="text-[17px] font-extrabold text-blue-600 tracking-tight mt-0.5">₱799</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">one-time</p>
                     </div>
                   </div>
