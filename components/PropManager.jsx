@@ -245,6 +245,97 @@ const AppSelect = ({ children, ...props }) => <select {...props} className="w-fu
 const Textarea = (props) => <textarea {...props} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50 min-h-[80px]" />;
 const OwnerWatermark = () => <p className="text-xs text-slate-200 font-semibold tracking-widest text-right mt-1 mb-3 uppercase select-none">EULA RentalPMS</p>;
 
+// ── PWA INSTALL BANNER ──
+// Shows on mobile browsers that support beforeinstallprompt (Android/Chrome)
+// On iPhone: shows a manual "Add to Home Screen" tip instead
+const InstallBanner = () => {
+  const [prompt,    setPrompt]    = useState(null);
+  const [show,      setShow]      = useState(false);
+  const [isIOS,     setIsIOS]     = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    // Check if already installed (running as standalone PWA)
+    if (window.matchMedia("(display-mode: standalone)").matches) return;
+    if (window.navigator.standalone) return; // iOS standalone
+
+    // Check if user already dismissed
+    if (localStorage.getItem("pwa-dismissed") === "1") return;
+
+    // Detect iOS (Safari doesn't support beforeinstallprompt)
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+    if (ios) { setIsIOS(true); setShow(true); return; }
+
+    // Android/Chrome — capture the install prompt
+    const handler = (e) => { e.preventDefault(); setPrompt(e); setShow(true); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const dismiss = () => {
+    setShow(false);
+    setDismissed(true);
+    localStorage.setItem("pwa-dismissed", "1");
+  };
+
+  const install = async () => {
+    if (!prompt) return;
+    prompt.prompt();
+    const { outcome } = await prompt.userChoice;
+    if (outcome === "accepted") setShow(false);
+    else dismiss();
+  };
+
+  if (!show || dismissed) return null;
+
+  if (isIOS) return (
+    <div className="fixed bottom-16 left-3 right-3 z-50">
+      <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-2xl flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <svg width="22" height="22" viewBox="0 0 40 40" fill="none">
+            <rect x="13" y="10" width="14" height="22" fill="white" opacity="0.95"/>
+            <rect x="6" y="16" width="8" height="16" fill="white" opacity="0.75"/>
+            <rect x="26" y="16" width="8" height="16" fill="white" opacity="0.75"/>
+            <polygon points="20,4 27,10 13,10" fill="white" opacity="0.9"/>
+            <polygon points="20,1 23,2.5 20,4" fill="#fbbf24"/>
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold">Install EULA on your iPhone</p>
+          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+            Tap the <span className="text-white font-semibold">Share</span> button
+            <span className="inline-block mx-1">⬆</span>
+            then <span className="text-white font-semibold">"Add to Home Screen"</span>
+          </p>
+        </div>
+        <button onClick={dismiss} className="text-slate-400 hover:text-white text-lg leading-none flex-shrink-0 mt-0.5">✕</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed bottom-16 left-3 right-3 z-50">
+      <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-2xl flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center flex-shrink-0">
+          <svg width="22" height="22" viewBox="0 0 40 40" fill="none">
+            <rect x="13" y="10" width="14" height="22" fill="white" opacity="0.95"/>
+            <rect x="6" y="16" width="8" height="16" fill="white" opacity="0.75"/>
+            <rect x="26" y="16" width="8" height="16" fill="white" opacity="0.75"/>
+            <polygon points="20,4 27,10 13,10" fill="white" opacity="0.9"/>
+            <polygon points="20,1 23,2.5 20,4" fill="#fbbf24"/>
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold">Install EULA</p>
+          <p className="text-xs text-slate-400 mt-0.5">Add to your home screen — works like a real app</p>
+        </div>
+        <button onClick={install} className="bg-indigo-600 text-white rounded-xl px-3 py-2 text-xs font-bold hover:bg-indigo-700 flex-shrink-0">Install</button>
+        <button onClick={dismiss} className="text-slate-400 hover:text-white text-lg leading-none flex-shrink-0">✕</button>
+      </div>
+    </div>
+  );
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTH SCREEN
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -378,12 +469,12 @@ const AuthScreen = ({ onLogin }) => {
                   <div className="bg-white rounded-xl p-3 border border-blue-100 flex items-center justify-between mb-2">
                     <div>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">GCash Number</p>
-                      <p className="text-[17px] font-extrabold text-slate-800 tracking-tight mt-0.5">0905 405 8556</p>
+                      <p className="text-[17px] font-extrabold text-slate-800 tracking-tight mt-0.5">0917 XXX XXXX</p>
                       <p className="text-[11px] text-slate-500 mt-0.5">Yoly G. · EULA RentalPMS</p>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Amount</p>
-                      <p className="text-[17px] font-extrabold text-blue-600 tracking-tight mt-0.5">₱1999</p>
+                      <p className="text-[17px] font-extrabold text-blue-600 tracking-tight mt-0.5">₱XXX</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">one-time</p>
                     </div>
                   </div>
@@ -1710,6 +1801,7 @@ function MainApp({ currentUser, onLogout }) {
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       <SyncBar />
+      <InstallBanner />
       <div className="sticky top-0 z-40 bg-white border-b border-slate-100 shadow-sm">
         <div className="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
